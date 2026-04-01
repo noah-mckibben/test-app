@@ -7,6 +7,7 @@ createApp({
             username: '',
             password: '',
             displayName: '',
+            phoneNumber: '',
             loading: false,
             error: ''
         };
@@ -44,7 +45,7 @@ createApp({
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: this.username, password: this.password, displayName: this.displayName })
+                    body: JSON.stringify({ username: this.username, password: this.password, displayName: this.displayName, phoneNumber: this.phoneNumber })
                 });
                 if (!res.ok) {
                     const text = await res.text();

@@ -1,5 +1,6 @@
 package com.nmckibben.testapp.controller;
 
+import com.nmckibben.testapp.dto.AddContactRequest;
 import com.nmckibben.testapp.dto.ContactDto;
 import com.nmckibben.testapp.service.ContactService;
 import org.springframework.http.ResponseEntity;
@@ -24,10 +25,16 @@ public class ContactController {
         return ResponseEntity.ok(contactService.getContacts(userDetails.getUsername()));
     }
 
-    @PostMapping("/{userId}")
+    @GetMapping("/search")
+    public ResponseEntity<List<ContactDto>> searchContacts(@AuthenticationPrincipal UserDetails userDetails,
+                                                            @RequestParam String name) {
+        return ResponseEntity.ok(contactService.searchContacts(userDetails.getUsername(), name));
+    }
+
+    @PostMapping
     public ResponseEntity<ContactDto> addContact(@AuthenticationPrincipal UserDetails userDetails,
-                                                  @PathVariable Long userId) {
-        return ResponseEntity.ok(contactService.addContact(userDetails.getUsername(), userId));
+                                                  @RequestBody AddContactRequest request) {
+        return ResponseEntity.ok(contactService.addContact(userDetails.getUsername(), request));
     }
 
     @DeleteMapping("/{contactId}")

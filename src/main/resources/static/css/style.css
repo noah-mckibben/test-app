@@ -83,8 +83,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 
 /* Dial Pad */
 .dialpad-view { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px; }
-.dial-display { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); font-size: 24px; font-weight: 300; width: 280px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; min-height: 54px; letter-spacing: .1em; }
-.btn-backspace { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px; }
+.dial-display-wrap { position: relative; width: 280px; }
+.dial-display { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+.dial-input { background: transparent; border: none; color: var(--text); font-size: 20px; font-weight: 300; flex: 1; outline: none; width: 100%; letter-spacing: .05em; }
+.dial-input::placeholder { color: var(--text-muted); font-size: 15px; }
+.btn-backspace { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px; flex-shrink: 0; }
+.dial-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); list-style: none; z-index: 10; max-height: 180px; overflow-y: auto; margin-top: 4px; }
+.dial-suggestions li { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; transition: background .15s; }
+.dial-suggestions li:hover { background: var(--card); }
+.suggestion-name { font-size: 14px; font-weight: 500; }
+.suggestion-number { font-size: 13px; color: var(--text-muted); }
 .dialpad-grid { display: grid; grid-template-columns: repeat(3, 80px); gap: 10px; }
 .dial-key { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); cursor: pointer; font-size: 20px; font-weight: 500; height: 64px; transition: background .15s; }
 .dial-key:hover { background: var(--border); }

@@ -46,36 +46,29 @@
                 <div class="panel-header">
                     <h3>Contacts</h3>
                     <button class="btn-add-contact" @click="showAddContact = !showAddContact" title="Add Contact">
-                        {{ showAddContact ? '✕' : '+ Add' }}
+                        {{ showAddContact ? '✕' : '+' }}
                     </button>
                 </div>
 
                 <!-- Add Contact Drawer -->
                 <div v-if="showAddContact" class="add-contact-drawer">
-                    <input v-model="contactSearch" type="text" placeholder="Search by name or username..."
-                           @input="searchUsers" class="search-input" autofocus>
-                    <div v-if="contactSearch && !searchResults.length" class="search-empty">No users found</div>
-                    <div v-for="user in searchResults" :key="user.id" class="search-result-item">
-                        <div class="contact-info">
-                            <span class="contact-name">{{ user.displayName }}</span>
-                            <span class="contact-username">@{{ user.username }}</span>
-                        </div>
-                        <button class="btn-sm" @click="addContact(user.id)">+ Add</button>
-                    </div>
+                    <input v-model="newContact.name" type="text" placeholder="Name" class="search-input">
+                    <input v-model="newContact.phoneNumber" type="tel" placeholder="Phone number" class="search-input">
+                    <button class="btn-primary" @click="addContact" :disabled="!newContact.name || !newContact.phoneNumber">
+                        Save Contact
+                    </button>
+                    <p v-if="addContactError" class="error-msg">{{ addContactError }}</p>
                 </div>
 
                 <ul class="contact-list">
-                    <li v-for="c in contacts" :key="c.id" class="contact-item"
-                        :class="{selected: selectedContact?.id === c.contact.id}"
-                        @click="selectContact(c.contact)">
-                        <span class="status-dot" :class="c.contact.status?.toLowerCase()"></span>
+                    <li v-for="c in contacts" :key="c.id" class="contact-item">
                         <div class="contact-info">
-                            <span class="contact-name">{{ c.contact.displayName }}</span>
-                            <span class="contact-username">@{{ c.contact.username }}</span>
+                            <span class="contact-name">{{ c.name }}</span>
+                            <span class="contact-username">{{ c.phoneNumber }}</span>
                         </div>
-                        <button class="btn-call-sm" @click.stop="callContact(c.contact)" title="Call">&#9742;</button>
+                        <button class="btn-call-sm" @click.stop="callByContact(c)" title="Call">&#9742;</button>
                     </li>
-                    <li v-if="!contacts.length" class="empty-hint">No contacts yet.<br>Click <strong>+ Add</strong> to find users.</li>
+                    <li v-if="!contacts.length" class="empty-hint">No contacts yet.<br>Click <strong>+</strong> to add one.</li>
                 </ul>
             </aside>
 
@@ -97,12 +90,22 @@
 
                 <!-- Dial Pad View -->
                 <div v-else class="dialpad-view">
-                    <div class="dial-display">
-                        <span>{{ dialInput || '&#8203;' }}</span>
-                        <button v-if="dialInput" class="btn-backspace" @click="dialInput = dialInput.slice(0,-1)">&#9003;</button>
+                    <div class="dial-display-wrap">
+                        <div class="dial-display">
+                            <input class="dial-input" v-model="dialInput" placeholder="Name or number..."
+                                   @input="onDialInput" @keyup.enter="dialCall" autocomplete="off">
+                            <button v-if="dialInput" class="btn-backspace" @click="dialInput = ''; dialSuggestions = []">&#9003;</button>
+                        </div>
+                        <!-- Contact Suggestions -->
+                        <ul v-if="dialSuggestions.length" class="dial-suggestions">
+                            <li v-for="c in dialSuggestions" :key="c.id" @click="selectDialContact(c)">
+                                <span class="suggestion-name">{{ c.name }}</span>
+                                <span class="suggestion-number">{{ c.phoneNumber }}</span>
+                            </li>
+                        </ul>
                     </div>
                     <div class="dialpad-grid">
-                        <button v-for="key in dialKeys" :key="key" class="dial-key" @click="dialInput += key">
+                        <button v-for="key in dialKeys" :key="key" class="dial-key" @click="dialInput += key; dialSuggestions = []">
                             {{ key }}
                         </button>
                     </div>

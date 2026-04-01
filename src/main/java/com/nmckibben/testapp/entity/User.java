@@ -20,6 +20,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(unique = true)
+    private String phoneNumber;
+
     @Column(nullable = false)
     private String status = "OFFLINE";
 
@@ -39,6 +42,8 @@ public class User {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }

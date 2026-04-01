@@ -29,6 +29,7 @@
                 <div v-if="tab === 'register'" class="form">
                     <input v-model="username" type="text" placeholder="Username">
                     <input v-model="displayName" type="text" placeholder="Display Name">
+                    <input v-model="phoneNumber" type="tel" placeholder="Phone Number (e.g. 5551234567)">
                     <input v-model="password" type="password" placeholder="Password">
                     <button class="btn-primary" @click="register" :disabled="loading">
                         {{ loading ? 'Registering...' : 'Create Account' }}

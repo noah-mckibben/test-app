@@ -1,5 +1,6 @@
 package com.nmckibben.testapp.service;
 
+import com.nmckibben.testapp.dto.AddContactRequest;
 import com.nmckibben.testapp.dto.ContactDto;
 import com.nmckibben.testapp.entity.Contact;
 import com.nmckibben.testapp.entity.User;
@@ -27,16 +28,19 @@ public class ContactService {
                 .toList();
     }
 
-    public ContactDto addContact(String ownerUsername, Long contactUserId) {
+    public List<ContactDto> searchContacts(String username, String name) {
+        User owner = userRepository.findByUsername(username).orElseThrow();
+        return contactRepository.findByOwnerAndNameContainingIgnoreCase(owner, name).stream()
+                .map(ContactDto::from)
+                .toList();
+    }
+
+    public ContactDto addContact(String ownerUsername, AddContactRequest request) {
         User owner = userRepository.findByUsername(ownerUsername).orElseThrow();
-        User contactUser = userRepository.findById(contactUserId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        if (contactRepository.existsByOwnerAndContact(owner, contactUser)) {
-            throw new IllegalArgumentException("Contact already added");
-        }
         Contact contact = new Contact();
         contact.setOwner(owner);
-        contact.setContact(contactUser);
+        contact.setName(request.getName());
+        contact.setPhoneNumber(request.getPhoneNumber());
         return ContactDto.from(contactRepository.save(contact));
     }
 

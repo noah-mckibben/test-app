@@ -31,6 +31,16 @@ public class UserController {
         return ResponseEntity.ok(userService.searchUsers(q));
     }
 
+    @GetMapping("/phone/{number}")
+    public ResponseEntity<UserDto> findByPhoneNumber(@PathVariable String number) {
+        try {
+            User user = userService.findByPhoneNumber(number);
+            return ResponseEntity.ok(UserDto.from(user));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PutMapping("/status")
     public ResponseEntity<Void> updateStatus(@AuthenticationPrincipal UserDetails userDetails,
                                               @RequestParam String status) {

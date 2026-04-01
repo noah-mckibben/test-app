@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface ContactRepository extends JpaRepository<Contact, Long> {
     List<Contact> findByOwner(User owner);
-    Optional<Contact> findByOwnerAndContact(User owner, User contact);
-    boolean existsByOwnerAndContact(User owner, User contact);
+    Optional<Contact> findByOwnerAndPhoneNumber(User owner, String phoneNumber);
+    List<Contact> findByOwnerAndNameContainingIgnoreCase(User owner, String name);
 }

@@ -4,9 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "contacts", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"owner_id", "contact_id"})
-})
+@Table(name = "contacts")
 public class Contact {
 
     @Id
@@ -17,9 +15,11 @@ public class Contact {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "contact_id", nullable = false)
-    private User contact;
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
+    private String phoneNumber;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -33,8 +33,10 @@ public class Contact {
     public void setId(Long id) { this.id = id; }
     public User getOwner() { return owner; }
     public void setOwner(User owner) { this.owner = owner; }
-    public User getContact() { return contact; }
-    public void setContact(User contact) { this.contact = contact; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

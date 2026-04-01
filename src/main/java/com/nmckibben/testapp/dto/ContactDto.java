@@ -4,15 +4,18 @@ import com.nmckibben.testapp.entity.Contact;
 
 public class ContactDto {
     private Long id;
-    private UserDto contact;
+    private String name;
+    private String phoneNumber;
 
     public static ContactDto from(Contact contact) {
         ContactDto dto = new ContactDto();
         dto.id = contact.getId();
-        dto.contact = UserDto.from(contact.getContact());
+        dto.name = contact.getName();
+        dto.phoneNumber = contact.getPhoneNumber();
         return dto;
     }
 
     public Long getId() { return id; }
-    public UserDto getContact() { return contact; }
+    public String getName() { return name; }
+    public String getPhoneNumber() { return phoneNumber; }
 }

@@ -3,6 +3,7 @@ package com.nmckibben.testapp.config;
 import com.nmckibben.testapp.security.JwtAuthenticationFilter;
 import com.nmckibben.testapp.security.JwtTokenProvider;
 import com.nmckibben.testapp.security.UserDetailsServiceImpl;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -14,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -33,11 +35,14 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                 .requestMatchers(
-                    "/api/auth/**",
-                    "/ws/**",
-                    "/", "/index.html", "/app.html",
-                    "/css/**", "/js/**"
+                    new AntPathRequestMatcher("/"),
+                    new AntPathRequestMatcher("/*.html"),
+                    new AntPathRequestMatcher("/css/**"),
+                    new AntPathRequestMatcher("/js/**"),
+                    new AntPathRequestMatcher("/api/auth/**"),
+                    new AntPathRequestMatcher("/ws/**")
                 ).permitAll()
                 .anyRequest().authenticated()
             )

@@ -9,9 +9,9 @@ createApp({
             contacts: [],
             callHistory: [],
             showAddContact: false,
-            contactSearch: '',
-            searchResults: [],
-            searchDebounce: null,
+            newContact: { name: '', phoneNumber: '' },
+            addContactError: '',
+            dialSuggestions: [],
             selectedContact: null,
             incomingCall: null,
             activeCall: null,
@@ -71,43 +71,52 @@ createApp({
             const res = await this.api('/api/calls');
             this.callHistory = await res.json();
         },
-        searchUsers() {
-            clearTimeout(this.searchDebounce);
-            if (!this.contactSearch.trim()) { this.searchResults = []; return; }
-            this.searchDebounce = setTimeout(async () => {
-                const res = await this.api(`/api/users/search?q=${encodeURIComponent(this.contactSearch)}`);
-                const users = await res.json();
-                const contactIds = new Set(this.contacts.map(c => c.contact.id));
-                this.searchResults = users.filter(u => u.id !== this.currentUser.id && !contactIds.has(u.id));
-            }, 300);
+        async addContact() {
+            this.addContactError = '';
+            try {
+                await this.api('/api/contacts', {
+                    method: 'POST',
+                    body: JSON.stringify({ name: this.newContact.name, phoneNumber: this.newContact.phoneNumber })
+                });
+                this.newContact = { name: '', phoneNumber: '' };
+                this.showAddContact = false;
+                await this.loadContacts();
+            } catch (e) {
+                this.addContactError = 'Failed to save contact';
+            }
         },
-        async addContact(userId) {
-            await this.api(`/api/contacts/${userId}`, { method: 'POST' });
-            this.searchResults = [];
-            this.contactSearch = '';
-            this.showAddContact = false;
-            await this.loadContacts();
+        async callByContact(contact) {
+            this.callError = '';
+            const res = await this.api(`/api/users/phone/${encodeURIComponent(contact.phoneNumber)}`);
+            if (!res.ok) { this.callError = `${contact.name} is not on the app`; return; }
+            const user = await res.json();
+            this._initiateCall(user, contact.name);
         },
-        selectContact(contact) {
-            this.selectedContact = contact;
+        async onDialInput() {
+            const query = this.dialInput.trim();
+            if (!query || /^\d+$/.test(query)) { this.dialSuggestions = []; return; }
+            const res = await this.api(`/api/contacts/search?name=${encodeURIComponent(query)}`);
+            this.dialSuggestions = await res.json();
         },
-        callContact(contact) {
-            this._initiateCall(contact);
+        selectDialContact(contact) {
+            this.dialInput = contact.phoneNumber;
+            this.dialSuggestions = [];
         },
         async dialCall() {
-            const query = this.dialInput.trim();
+            const number = this.dialInput.trim();
             this.callError = '';
-            const res = await this.api(`/api/users/search?q=${encodeURIComponent(query)}`);
-            const users = await res.json();
-            const target = users.find(u => u.username === query || u.id === Number(query));
-            if (!target) { this.callError = 'User not found'; return; }
+            if (!number) return;
+            const res = await this.api(`/api/users/phone/${encodeURIComponent(number)}`);
+            if (!res.ok) { this.callError = 'No user found with that number'; return; }
+            const user = await res.json();
             this.dialInput = '';
-            this._initiateCall(target);
+            this._initiateCall(user, user.displayName);
         },
-        async _initiateCall(target) {
+        async _initiateCall(target, displayName) {
             const res = await this.api(`/api/calls/${target.id}`, { method: 'POST' });
             const record = await res.json();
             this.currentCallRecordId = record.id;
+            this.pendingRemoteName = displayName || target.displayName;
             this.signaling.send('call-request', target.id, { fromName: this.currentUser.displayName, callRecordId: record.id });
         },
         _onIncomingCall(msg) {
@@ -132,8 +141,7 @@ createApp({
         async _onCallAccepted(msg) {
             await this.webrtc.startCall(msg.from);
             await this.api(`/api/calls/${this.currentCallRecordId}/status?status=ANSWERED`, { method: 'PUT' });
-            const contact = this.contacts.find(c => c.contact.id === msg.from)?.contact;
-            this._startActiveCall(contact || { id: msg.from, displayName: 'Unknown' });
+            this._startActiveCall({ id: msg.from, displayName: this.pendingRemoteName || 'Unknown' });
         },
         _onCallRejected() {
             if (this.currentCallRecordId) {
