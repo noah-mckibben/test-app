@@ -39,20 +39,30 @@ public class TwilioController {
     private String defaultClient;
 
     @GetMapping("/token")
-    public ResponseEntity<Map<String, String>> getToken(@AuthenticationPrincipal UserDetails userDetails) {
-        VoiceGrant grant = new VoiceGrant();
-        grant.setOutgoingApplicationSid(twimlAppSid);
-        grant.setIncomingAllow(true);
+    public ResponseEntity<Map<String, Object>> getToken(@AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            VoiceGrant grant = new VoiceGrant();
+            grant.setOutgoingApplicationSid(twimlAppSid);
+            grant.setIncomingAllow(true);
 
-        AccessToken token = new AccessToken.Builder(accountSid, apiKeySid, apiKeySecret)
-                .identity(userDetails.getUsername())
-                .grant(grant)
-                .build();
+            AccessToken token = new AccessToken.Builder(accountSid, apiKeySid, apiKeySecret)
+                    .identity(userDetails.getUsername())
+                    .grant(grant)
+                    .build();
 
-        return ResponseEntity.ok(Map.of(
-                "token", token.toJwt(),
-                "identity", userDetails.getUsername()
-        ));
+            return ResponseEntity.ok(Map.of(
+                    "token", token.toJwt(),
+                    "identity", userDetails.getUsername()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", e.getClass().getSimpleName(),
+                    "message", e.getMessage() != null ? e.getMessage() : "null",
+                    "accountSid", accountSid != null ? accountSid.substring(0, 6) + "..." : "NULL",
+                    "apiKeySid", apiKeySid != null ? apiKeySid.substring(0, 6) + "..." : "NULL",
+                    "twimlAppSid", twimlAppSid != null ? twimlAppSid.substring(0, 6) + "..." : "NULL"
+            ));
+        }
     }
 
     @PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
