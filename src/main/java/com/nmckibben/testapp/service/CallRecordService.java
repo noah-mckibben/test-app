@@ -33,6 +33,15 @@ public class CallRecordService {
         return CallRecordDto.from(callRecordRepository.save(record));
     }
 
+    public CallRecordDto createPstnCallRecord(String callerUsername, String calleeNumber) {
+        User caller = userRepository.findByUsername(callerUsername).orElseThrow();
+        CallRecord record = new CallRecord();
+        record.setCaller(caller);
+        record.setCalleeNumber(calleeNumber);
+        record.setStatus(CallStatus.INITIATED);
+        return CallRecordDto.from(callRecordRepository.save(record));
+    }
+
     public CallRecordDto updateCallRecord(Long id, CallStatus status) {
         CallRecord record = callRecordRepository.findById(id).orElseThrow();
         record.setStatus(status);

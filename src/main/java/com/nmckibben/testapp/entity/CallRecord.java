@@ -16,8 +16,12 @@ public class CallRecord {
     private User caller;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "callee_id", nullable = false)
+    @JoinColumn(name = "callee_id")
     private User callee;
+
+    // Used when callee is not an app user (PSTN call)
+    @Column
+    private String calleeNumber;
 
     @Column(nullable = false)
     private LocalDateTime startTime;
@@ -42,6 +46,8 @@ public class CallRecord {
     public void setCaller(User caller) { this.caller = caller; }
     public User getCallee() { return callee; }
     public void setCallee(User callee) { this.callee = callee; }
+    public String getCalleeNumber() { return calleeNumber; }
+    public void setCalleeNumber(String calleeNumber) { this.calleeNumber = calleeNumber; }
     public LocalDateTime getStartTime() { return startTime; }
     public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
     public LocalDateTime getEndTime() { return endTime; }

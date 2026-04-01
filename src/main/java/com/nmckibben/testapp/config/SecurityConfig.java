@@ -35,7 +35,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/", "/*.html", "/css/**", "/js/**",
-                    "/api/auth/**", "/ws/**"
+                    "/api/auth/**", "/ws/**",
+                    "/api/twilio/voice", "/api/twilio/voice/status"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

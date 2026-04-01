@@ -126,7 +126,7 @@
                         </span>
                         <div class="history-info">
                             <span class="history-name">
-                                {{ call.caller.id === currentUser.id ? call.callee.displayName : call.caller.displayName }}
+                                {{ call.caller.id === currentUser.id ? calleeDisplay(call) : call.caller.displayName }}
                             </span>
                             <span class="history-meta">
                                 {{ call.status }} &bull; {{ formatDuration(call.durationSeconds) }}
@@ -143,8 +143,7 @@
         </div>
     </div>
 
-    <script src="/js/signaling.js"></script>
-    <script src="/js/webrtc.js"></script>
+    <script src="https://sdk.twilio.com/js/voice/releases/2.10.0/twilio.min.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

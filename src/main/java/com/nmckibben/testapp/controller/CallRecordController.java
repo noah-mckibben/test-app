@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/calls")
@@ -24,6 +25,12 @@ public class CallRecordController {
     public ResponseEntity<CallRecordDto> initiateCall(@AuthenticationPrincipal UserDetails userDetails,
                                                        @PathVariable Long calleeId) {
         return ResponseEntity.ok(callRecordService.createCallRecord(userDetails.getUsername(), calleeId));
+    }
+
+    @PostMapping("/pstn")
+    public ResponseEntity<CallRecordDto> initiatePstnCall(@AuthenticationPrincipal UserDetails userDetails,
+                                                           @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(callRecordService.createPstnCallRecord(userDetails.getUsername(), body.get("calleeNumber")));
     }
 
     @PutMapping("/{callId}/status")
