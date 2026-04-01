@@ -36,8 +36,8 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/", "/*.html", "/css/**", "/js/**",
                     "/api/auth/**", "/ws/**",
-                    "/api/twilio/voice", "/api/twilio/voice/status",
-                    "/api/debug/token-check"
+                    "/api/twilio/**",
+                    "/api/debug/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

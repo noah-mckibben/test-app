@@ -41,18 +41,20 @@ public class TwilioController {
     @GetMapping("/token")
     public ResponseEntity<Map<String, Object>> getToken(@AuthenticationPrincipal UserDetails userDetails) {
         try {
+            String identity = userDetails != null ? userDetails.getUsername() : "anonymous";
+
             VoiceGrant grant = new VoiceGrant();
             grant.setOutgoingApplicationSid(twimlAppSid);
             grant.setIncomingAllow(true);
 
             AccessToken token = new AccessToken.Builder(accountSid, apiKeySid, apiKeySecret)
-                    .identity(userDetails.getUsername())
+                    .identity(identity)
                     .grant(grant)
                     .build();
 
             return ResponseEntity.ok(Map.of(
                     "token", token.toJwt(),
-                    "identity", userDetails.getUsername()
+                    "identity", identity
             ));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of(
