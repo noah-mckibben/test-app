@@ -47,8 +47,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 .contacts-panel { width: 260px; min-width: 200px; }
 .center-panel { flex: 1; align-items: center; justify-content: center; border-right: 1px solid var(--border); }
 .history-panel { width: 280px; min-width: 200px; border-right: none; }
-.panel-header { padding: 16px; border-bottom: 1px solid var(--border); }
+.panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
 .panel-header h3 { font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.btn-add-contact { background: var(--accent); border: none; border-radius: var(--radius); color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 10px; }
+.add-contact-drawer { background: var(--card); border-bottom: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.search-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 6px; }
 
 /* Search */
 .search-row { padding: 10px; border-bottom: 1px solid var(--border); }

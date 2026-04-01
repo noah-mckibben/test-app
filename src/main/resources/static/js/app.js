@@ -8,6 +8,7 @@ createApp({
             myStatus: user.status || 'ONLINE',
             contacts: [],
             callHistory: [],
+            showAddContact: false,
             contactSearch: '',
             searchResults: [],
             searchDebounce: null,
@@ -84,6 +85,7 @@ createApp({
             await this.api(`/api/contacts/${userId}`, { method: 'POST' });
             this.searchResults = [];
             this.contactSearch = '';
+            this.showAddContact = false;
             await this.loadContacts();
         },
         selectContact(contact) {

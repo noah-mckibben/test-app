@@ -45,17 +45,25 @@
             <aside class="panel contacts-panel">
                 <div class="panel-header">
                     <h3>Contacts</h3>
+                    <button class="btn-add-contact" @click="showAddContact = !showAddContact" title="Add Contact">
+                        {{ showAddContact ? '✕' : '+ Add' }}
+                    </button>
                 </div>
-                <div class="search-row">
-                    <input v-model="contactSearch" type="text" placeholder="Search users to add..."
-                           @input="searchUsers" class="search-input">
-                </div>
-                <div v-if="searchResults.length" class="search-results">
+
+                <!-- Add Contact Drawer -->
+                <div v-if="showAddContact" class="add-contact-drawer">
+                    <input v-model="contactSearch" type="text" placeholder="Search by name or username..."
+                           @input="searchUsers" class="search-input" autofocus>
+                    <div v-if="contactSearch && !searchResults.length" class="search-empty">No users found</div>
                     <div v-for="user in searchResults" :key="user.id" class="search-result-item">
-                        <span>{{ user.displayName }} <small>@{{ user.username }}</small></span>
+                        <div class="contact-info">
+                            <span class="contact-name">{{ user.displayName }}</span>
+                            <span class="contact-username">@{{ user.username }}</span>
+                        </div>
                         <button class="btn-sm" @click="addContact(user.id)">+ Add</button>
                     </div>
                 </div>
+
                 <ul class="contact-list">
                     <li v-for="c in contacts" :key="c.id" class="contact-item"
                         :class="{selected: selectedContact?.id === c.contact.id}"
@@ -67,7 +75,7 @@
                         </div>
                         <button class="btn-call-sm" @click.stop="callContact(c.contact)" title="Call">&#9742;</button>
                     </li>
-                    <li v-if="!contacts.length" class="empty-hint">No contacts yet. Search above to add.</li>
+                    <li v-if="!contacts.length" class="empty-hint">No contacts yet.<br>Click <strong>+ Add</strong> to find users.</li>
                 </ul>
             </aside>
 
