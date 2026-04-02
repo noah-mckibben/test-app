@@ -89,6 +89,7 @@ createApp({
                 await this.twilioDevice.register();
             } catch (e) {
                 console.error('Twilio init failed:', e.message);
+                this.callError = 'Phone failed to initialize: ' + e.message;
             }
         },
 
