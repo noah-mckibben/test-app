@@ -57,12 +57,12 @@ public class AuthController {
     }
 
     @GetMapping("/twilio-test")
-    public ResponseEntity<Map<String, Object>> twilioTest() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("accountSid_prefix", accountSid != null ? accountSid.substring(0, Math.min(6, accountSid.length())) : "NULL");
-        result.put("apiKeySid_prefix", apiKeySid != null ? apiKeySid.substring(0, Math.min(6, apiKeySid.length())) : "NULL");
-        result.put("apiKeySecret_present", apiKeySecret != null && !apiKeySecret.equals("FILL_IN"));
-        result.put("twimlAppSid_prefix", twimlAppSid != null ? twimlAppSid.substring(0, Math.min(6, twimlAppSid.length())) : "NULL");
+    public String twilioTest() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("accountSid=").append(accountSid != null ? accountSid.substring(0, Math.min(6, accountSid.length())) : "NULL").append("\n");
+        sb.append("apiKeySid=").append(apiKeySid != null ? apiKeySid.substring(0, Math.min(6, apiKeySid.length())) : "NULL").append("\n");
+        sb.append("apiKeySecret_present=").append(apiKeySecret != null && !apiKeySecret.equals("FILL_IN")).append("\n");
+        sb.append("twimlAppSid=").append(twimlAppSid != null ? twimlAppSid.substring(0, Math.min(6, twimlAppSid.length())) : "NULL").append("\n");
         try {
             VoiceGrant grant = new VoiceGrant();
             grant.setOutgoingApplicationSid(twimlAppSid);
@@ -71,13 +71,13 @@ public class AuthController {
                     .identity("test-user")
                     .grant(grant)
                     .build();
-            result.put("status", "SUCCESS");
-            result.put("token_prefix", token.toJwt().substring(0, 20) + "...");
+            sb.append("status=SUCCESS\n");
+            sb.append("token_prefix=").append(token.toJwt().substring(0, 20)).append("...");
         } catch (Exception e) {
-            result.put("status", "FAILED");
-            result.put("error", e.getClass().getSimpleName());
-            result.put("message", e.getMessage());
+            sb.append("status=FAILED\n");
+            sb.append("error=").append(e.getClass().getSimpleName()).append("\n");
+            sb.append("message=").append(e.getMessage());
         }
-        return ResponseEntity.ok(result);
+        return sb.toString();
     }
 }
