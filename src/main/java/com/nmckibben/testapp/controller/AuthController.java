@@ -9,23 +9,15 @@ import com.nmckibben.testapp.security.JwtTokenProvider;
 import com.nmckibben.testapp.service.UserService;
 import com.twilio.jwt.accesstoken.AccessToken;
 import com.twilio.jwt.accesstoken.VoiceGrant;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-
-    @Value("${twilio.account-sid}") private String accountSid;
-    @Value("${twilio.api-key-sid}") private String apiKeySid;
-    @Value("${twilio.api-key-secret}") private String apiKeySecret;
-    @Value("${twilio.twiml-app-sid}") private String twimlAppSid;
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
@@ -58,16 +50,29 @@ public class AuthController {
 
     @GetMapping("/twilio-test")
     public String twilioTest() {
+        // Read directly from environment variables — bypasses @Value injection entirely
+        String acctSid = System.getenv("TWILIO_ACCOUNT_SID");
+        String apiKeySid = System.getenv("TWILIO_API_KEY_SID");
+        String apiKeySecret = System.getenv("TWILIO_API_KEY_SECRET");
+        String appSid = System.getenv("TWILIO_TWIML_APP_SID");
+
         StringBuilder sb = new StringBuilder();
-        sb.append("accountSid=").append(accountSid != null ? accountSid.substring(0, Math.min(6, accountSid.length())) : "NULL").append("\n");
-        sb.append("apiKeySid=").append(apiKeySid != null ? apiKeySid.substring(0, Math.min(6, apiKeySid.length())) : "NULL").append("\n");
-        sb.append("apiKeySecret_present=").append(apiKeySecret != null && !apiKeySecret.equals("FILL_IN")).append("\n");
-        sb.append("twimlAppSid=").append(twimlAppSid != null ? twimlAppSid.substring(0, Math.min(6, twimlAppSid.length())) : "NULL").append("\n");
+        sb.append("env.TWILIO_ACCOUNT_SID=").append(acctSid != null ? acctSid.substring(0, Math.min(6, acctSid.length())) + "..." : "NULL").append("\n");
+        sb.append("env.TWILIO_API_KEY_SID=").append(apiKeySid != null ? apiKeySid.substring(0, Math.min(6, apiKeySid.length())) + "..." : "NULL").append("\n");
+        sb.append("env.TWILIO_API_KEY_SECRET_present=").append(apiKeySecret != null && !apiKeySecret.isBlank()).append("\n");
+        sb.append("env.TWILIO_TWIML_APP_SID=").append(appSid != null ? appSid.substring(0, Math.min(6, appSid.length())) + "..." : "NULL").append("\n");
+
+        if (acctSid == null || apiKeySid == null || apiKeySecret == null || appSid == null) {
+            sb.append("status=FAILED\n");
+            sb.append("reason=One or more env vars are null — check Azure App Settings");
+            return sb.toString();
+        }
+
         try {
             VoiceGrant grant = new VoiceGrant();
-            grant.setOutgoingApplicationSid(twimlAppSid);
+            grant.setOutgoingApplicationSid(appSid);
             grant.setIncomingAllow(true);
-            AccessToken token = new AccessToken.Builder(accountSid, apiKeySid, apiKeySecret)
+            AccessToken token = new AccessToken.Builder(acctSid, apiKeySid, apiKeySecret)
                     .identity("test-user")
                     .grant(grant)
                     .build();
