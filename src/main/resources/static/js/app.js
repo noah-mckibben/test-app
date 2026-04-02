@@ -67,7 +67,8 @@ createApp({
 
                 this.twilioDevice = new Twilio.Device(token, {
                     logLevel: 1,
-                    codecPreferences: ['opus', 'pcmu']
+                    codecPreferences: ['opus', 'pcmu'],
+                    edge: 'roaming'
                 });
 
                 this.twilioDevice.on('registered', () => {
@@ -83,7 +84,8 @@ createApp({
                 });
 
                 this.twilioDevice.on('error', (err) => {
-                    console.error('Twilio error:', err.message);
+                    console.error('Twilio error:', err.code, err.message, err);
+                    this.callError = `Phone error (${err.code}): ${err.message}`;
                 });
 
                 await this.twilioDevice.register();
