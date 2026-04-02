@@ -48,6 +48,23 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(token, UserDto.from(user)));
     }
 
+    @GetMapping("/ping")
+    public String ping() {
+        return "pong";
+    }
+
+    @GetMapping("/env-check")
+    public String envCheck() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("TWILIO_ACCOUNT_SID=").append(System.getenv("TWILIO_ACCOUNT_SID") != null ? "SET" : "NULL").append("\n");
+        sb.append("TWILIO_API_KEY_SID=").append(System.getenv("TWILIO_API_KEY_SID") != null ? "SET" : "NULL").append("\n");
+        sb.append("TWILIO_API_KEY_SECRET=").append(System.getenv("TWILIO_API_KEY_SECRET") != null ? "SET" : "NULL").append("\n");
+        sb.append("TWILIO_TWIML_APP_SID=").append(System.getenv("TWILIO_TWIML_APP_SID") != null ? "SET" : "NULL").append("\n");
+        sb.append("TWILIO_AUTH_TOKEN=").append(System.getenv("TWILIO_AUTH_TOKEN") != null ? "SET" : "NULL").append("\n");
+        sb.append("JWT_SECRET=").append(System.getenv("JWT_SECRET") != null ? "SET" : "NULL").append("\n");
+        return sb.toString();
+    }
+
     @GetMapping("/twilio-test")
     public String twilioTest() {
         // Read directly from environment variables — bypasses @Value injection entirely
@@ -78,10 +95,15 @@ public class AuthController {
                     .build();
             sb.append("status=SUCCESS\n");
             sb.append("token_prefix=").append(token.toJwt().substring(0, 20)).append("...");
-        } catch (Exception e) {
+        } catch (Throwable t) {
+            // Catch Throwable (not just Exception) to capture Errors like ExceptionInInitializerError
             sb.append("status=FAILED\n");
-            sb.append("error=").append(e.getClass().getSimpleName()).append("\n");
-            sb.append("message=").append(e.getMessage());
+            sb.append("error_type=").append(t.getClass().getName()).append("\n");
+            sb.append("message=").append(t.getMessage()).append("\n");
+            Throwable cause = t.getCause();
+            if (cause != null) {
+                sb.append("cause=").append(cause.getClass().getName()).append(": ").append(cause.getMessage());
+            }
         }
         return sb.toString();
     }
