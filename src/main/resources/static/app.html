@@ -134,7 +134,7 @@
                             <span class="history-time">{{ formatTime(call.startTime) }}</span>
                         </div>
                         <button class="btn-call-sm"
-                            @click="callContact(call.caller.id === currentUser.id ? call.callee : call.caller)"
+                            @click="callBack(call)"
                             title="Call back">&#9742;</button>
                     </li>
                     <li v-if="!callHistory.length" class="empty-hint">No recent calls.</li>

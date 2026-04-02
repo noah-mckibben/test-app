@@ -32,7 +32,16 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .authorizeHttpRequests(auth -> auth
+                // Static frontend files
+                .requestMatchers("/", "/index.html", "/app.html", "/js/**", "/css/**").permitAll()
+                // Auth endpoints (login, register)
+                .requestMatchers("/api/auth/**").permitAll()
+                // Twilio webhook — must be public so Twilio servers can POST to it
+                .requestMatchers("/api/twilio/voice", "/api/twilio/voice/status").permitAll()
+                // Everything else requires a valid JWT
+                .anyRequest().authenticated()
+            )
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

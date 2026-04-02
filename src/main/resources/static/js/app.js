@@ -241,6 +241,21 @@ createApp({
             await this.loadCallHistory();
         },
 
+        // Call back from history entry
+        callBack(call) {
+            // If we were the caller, call the callee's number; otherwise call the caller's number
+            const isCaller = call.caller.id === this.currentUser.id;
+            if (isCaller) {
+                // We placed the call — dial the same destination number
+                const num = call.calleeNumber || (call.callee && call.callee.phoneNumber);
+                if (num) this._dial(num, call.calleeNumber ? call.calleeNumber : call.callee?.displayName);
+            } else {
+                // We received the call — dial back the caller's number
+                const num = call.caller.phoneNumber;
+                if (num) this._dial(num, call.caller.displayName);
+            }
+        },
+
         // ── Status / auth ─────────────────────────────────────────────────
         async changeStatus() {
             await this.api(`/api/users/status?status=${this.myStatus}`, { method: 'PUT' });
