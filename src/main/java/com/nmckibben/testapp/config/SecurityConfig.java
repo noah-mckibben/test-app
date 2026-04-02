@@ -31,21 +31,11 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/", "/*.html", "/css/**", "/js/**",
-                    "/api/auth/**", "/ws/**",
-                    "/api/twilio/**",
-                    "/api/debug/**"
-                ).permitAll()
-                .anyRequest().authenticated()
-            )
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
-
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
