@@ -46,17 +46,5 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(token, UserDto.from(user)));
     }
 
-    // TEMP: verify Azure has the correct Twilio credentials loaded
-    @GetMapping("/cred-check")
-    public String credCheck() {
-        String sid   = System.getenv("TWILIO_API_KEY_SID");
-        String sec   = System.getenv("TWILIO_API_KEY_SECRET");
-        String acct  = System.getenv("TWILIO_ACCOUNT_SID");
-        String app   = System.getenv("TWILIO_TWIML_APP_SID");
-        return "API_KEY_SID="    + (sid  != null ? sid.substring(0, Math.min(8, sid.length()))  + "..." : "NULL") + "\n"
-             + "API_KEY_SECRET=" + (sec  != null ? sec.substring(0, Math.min(8, sec.length()))  + "..." : "NULL") + "\n"
-             + "ACCOUNT_SID="   + (acct != null ? acct.substring(0, Math.min(8, acct.length())) + "..." : "NULL") + "\n"
-             + "TWIML_APP_SID=" + (app  != null ? app.substring(0, Math.min(8, app.length()))  + "..." : "NULL") + "\n";
-    }
 
 }
