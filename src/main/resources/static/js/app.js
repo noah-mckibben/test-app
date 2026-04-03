@@ -162,13 +162,19 @@ createApp({
             const to = this.formatNumber(rawNumber);
             const label = displayName || to;
 
-            // Create call record
-            const recRes = await this.api('/api/calls/pstn', {
-                method: 'POST',
-                body: JSON.stringify({ calleeNumber: to })
-            });
-            const record = await recRes.json();
-            this.currentCallRecordId = record.id;
+            // Create call record (best-effort — don't block the call if it fails)
+            try {
+                const recRes = await this.api('/api/calls/pstn', {
+                    method: 'POST',
+                    body: JSON.stringify({ calleeNumber: to })
+                });
+                if (recRes.ok) {
+                    const record = await recRes.json();
+                    this.currentCallRecordId = record.id;
+                }
+            } catch (e) {
+                console.warn('Could not create call record:', e.message);
+            }
 
             try {
                 this.currentCall = await this.twilioDevice.connect({ params: { To: to } });
