@@ -41,7 +41,10 @@ public class TwilioController {
     @GetMapping("/token")
     public ResponseEntity<Map<String, Object>> getToken(@AuthenticationPrincipal UserDetails userDetails) {
         try {
-            String identity = userDetails != null ? userDetails.getUsername() : "anonymous";
+            if (userDetails == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+            }
+            String identity = userDetails.getUsername();
 
             VoiceGrant grant = new VoiceGrant();
             grant.setOutgoingApplicationSid(twimlAppSid);
