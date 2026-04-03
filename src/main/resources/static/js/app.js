@@ -39,7 +39,28 @@ function IncomingCallModal({ incomingCall, onAccept, onReject }) {
 }
 
 /* ── Contacts panel ──────────────────────────────────────────────── */
-function ContactsPanel({ contacts, onCall, showAddContact, setShowAddContact, newContact, setNewContact, onAddContact, addContactError }) {
+function ContactsPanel({
+    contacts, onCallPstn, onCallApp,
+    showAddContact, setShowAddContact,
+    newContact, setNewContact, onAddContact, addContactError,
+    onlineUsers, currentUserId
+}) {
+    // Separate contacts by whether they have an online app user match
+    const appOnline  = contacts.filter(c => c.appStatus === 'ONLINE');
+    const appOffline = contacts.filter(c => c.appUsername && c.appStatus !== 'ONLINE');
+    const pstnOnly   = contacts.filter(c => !c.appUsername);
+
+    // Online users not already in contacts list
+    const contactAppUserIds = new Set(contacts.map(c => c.appUserId).filter(Boolean));
+    const onlineNotInContacts = onlineUsers.filter(
+        u => u.id !== currentUserId && !contactAppUserIds.has(u.id)
+    );
+
+    function statusDot(status) {
+        const cls = status === 'ONLINE' ? 'online' : status === 'BUSY' ? 'busy' : 'offline';
+        return <span className={`status-dot ${cls}`} style={{ marginRight: 6 }} />;
+    }
+
     return (
         <aside className="panel contacts-panel">
             <div className="panel-header">
@@ -73,18 +94,111 @@ function ContactsPanel({ contacts, onCall, showAddContact, setShowAddContact, ne
             )}
 
             <ul className="contact-list">
-                {contacts.length === 0 && (
+                {/* ── Online app users not yet saved as contacts ─── */}
+                {onlineNotInContacts.length > 0 && (
+                    <>
+                        <li className="contact-section-header">Online Now</li>
+                        {onlineNotInContacts.map(u => (
+                            <li key={`online-${u.id}`} className="contact-item">
+                                <div className="contact-info">
+                                    {statusDot('ONLINE')}
+                                    <span className="contact-name">{u.displayName}</span>
+                                    <span className="contact-username">{u.username}</span>
+                                </div>
+                                <button
+                                    className="btn-call-sm app-call"
+                                    onClick={() => onCallApp(u.phoneNumber, u.displayName, u.username, u.id)}
+                                    title="Call in-app (free)"
+                                >
+                                    &#9742;
+                                </button>
+                            </li>
+                        ))}
+                    </>
+                )}
+
+                {/* ── Contacts who are online app users ─────────── */}
+                {appOnline.length > 0 && (
+                    <>
+                        <li className="contact-section-header">In-App · Online</li>
+                        {appOnline.map(c => (
+                            <li key={c.id} className="contact-item">
+                                <div className="contact-info">
+                                    {statusDot('ONLINE')}
+                                    <span className="contact-name">{c.name}</span>
+                                    <span className="contact-username">{c.phoneNumber}</span>
+                                </div>
+                                <div className="call-btn-group">
+                                    <button
+                                        className="btn-call-sm app-call"
+                                        onClick={() => onCallApp(c.phoneNumber, c.name, c.appUsername, c.appUserId)}
+                                        title="Call in-app (free)"
+                                    >
+                                        &#9742;
+                                    </button>
+                                    <button
+                                        className="btn-call-sm"
+                                        onClick={() => onCallPstn(c)}
+                                        title="Call phone number"
+                                    >
+                                        &#128222;
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </>
+                )}
+
+                {/* ── Contacts who are app users but offline ─────── */}
+                {appOffline.length > 0 && (
+                    <>
+                        <li className="contact-section-header">In-App · Offline</li>
+                        {appOffline.map(c => (
+                            <li key={c.id} className="contact-item">
+                                <div className="contact-info">
+                                    {statusDot(c.appStatus || 'OFFLINE')}
+                                    <span className="contact-name">{c.name}</span>
+                                    <span className="contact-username">{c.phoneNumber}</span>
+                                </div>
+                                <button
+                                    className="btn-call-sm"
+                                    onClick={() => onCallPstn(c)}
+                                    title="Call phone number"
+                                >
+                                    &#9742;
+                                </button>
+                            </li>
+                        ))}
+                    </>
+                )}
+
+                {/* ── External-only contacts (no app account) ───── */}
+                {pstnOnly.length > 0 && (
+                    <>
+                        {(appOnline.length > 0 || appOffline.length > 0 || onlineNotInContacts.length > 0) && (
+                            <li className="contact-section-header">External</li>
+                        )}
+                        {pstnOnly.map(c => (
+                            <li key={c.id} className="contact-item">
+                                <div className="contact-info">
+                                    <span className="contact-name">{c.name}</span>
+                                    <span className="contact-username">{c.phoneNumber}</span>
+                                </div>
+                                <button
+                                    className="btn-call-sm"
+                                    onClick={() => onCallPstn(c)}
+                                    title="Call phone number"
+                                >
+                                    &#9742;
+                                </button>
+                            </li>
+                        ))}
+                    </>
+                )}
+
+                {contacts.length === 0 && onlineNotInContacts.length === 0 && (
                     <li className="empty-hint">No contacts yet.<br />Click <strong>+</strong> to add one.</li>
                 )}
-                {contacts.map(c => (
-                    <li key={c.id} className="contact-item">
-                        <div className="contact-info">
-                            <span className="contact-name">{c.name}</span>
-                            <span className="contact-username">{c.phoneNumber}</span>
-                        </div>
-                        <button className="btn-call-sm" onClick={() => onCall(c)} title="Call">&#9742;</button>
-                    </li>
-                ))}
             </ul>
         </aside>
     );
@@ -154,6 +268,9 @@ function ActiveCallView({ activeCall, callSeconds, muted, onHangUp, onToggleMute
             <div className="active-call-view">
                 <div className="call-avatar large">&#9742;</div>
                 <p className="call-name large">{activeCall.remoteName}</p>
+                {activeCall.isAppCall && (
+                    <span className="app-call-badge">In-App</span>
+                )}
                 <p className="call-timer">{m}:{s}</p>
                 <div className="call-controls">
                     <button className={`ctrl-btn${muted ? ' active' : ''}`} onClick={onToggleMute} title="Mute">
@@ -183,6 +300,10 @@ function HistoryPanel({ callHistory, currentUser, onCallBack }) {
         if (call.callee) return call.callee.displayName;
         return call.calleeNumber || 'Unknown';
     }
+    function isAppCall(call) {
+        // A call has a callee User object when it was app-to-app
+        return call.callee != null;
+    }
 
     return (
         <aside className="panel history-panel">
@@ -197,6 +318,7 @@ function HistoryPanel({ callHistory, currentUser, onCallBack }) {
                         <div className="history-info">
                             <span className="history-name">
                                 {call.caller.id === currentUser.id ? calleeDisplay(call) : call.caller.displayName}
+                                {isAppCall(call) && <span className="app-call-badge small"> In-App</span>}
                             </span>
                             <span className="history-meta">
                                 {call.status}{call.durationSeconds ? ' \u2022 ' + formatDuration(call.durationSeconds) : ''}
@@ -240,6 +362,7 @@ function PhoneApp() {
     const [currentUser] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
     const [myStatus,       setMyStatus]       = useState(currentUser.status || 'ONLINE');
     const [contacts,       setContacts]       = useState([]);
+    const [onlineUsers,    setOnlineUsers]    = useState([]);
     const [callHistory,    setCallHistory]    = useState([]);
     const [showAddContact, setShowAddContact] = useState(false);
     const [newContact,     setNewContact]     = useState({ name: '', phoneNumber: '' });
@@ -254,12 +377,12 @@ function PhoneApp() {
     const [muted,          setMuted]          = useState(false);
     const [activeTab,      setActiveTab]      = useState('dialpad');
 
-    // Refs hold values that shouldn't trigger re-renders (and avoids wrapping
-    // Twilio's Device in a Vue-style Proxy, which caused the _log error)
-    const twilioDevice       = useRef(null);
-    const currentCall        = useRef(null);
-    const currentCallRecordId= useRef(null);
-    const callTimerInterval  = useRef(null);
+    // Refs: never put Twilio's Device in React state — its private class fields
+    // are non-configurable, which causes a Proxy invariant error in Vue / React.
+    const twilioDevice        = useRef(null);
+    const currentCall         = useRef(null);
+    const currentCallRecordId = useRef(null);
+    const callTimerInterval   = useRef(null);
 
     /* ── API helper ─────────────────────────────────────────────── */
     function api(path, options = {}) {
@@ -279,6 +402,11 @@ function PhoneApp() {
         setContacts(await res.json());
     }
 
+    async function loadOnlineUsers() {
+        const res = await api('/api/users/online');
+        setOnlineUsers(await res.json());
+    }
+
     async function loadCallHistory() {
         const res = await api('/api/calls');
         setCallHistory(await res.json());
@@ -291,8 +419,8 @@ function PhoneApp() {
             if (!res.ok) throw new Error('Could not get Twilio token');
             const { token } = await res.json();
 
-            // Store device in a ref — never in React state — so Twilio's
-            // internal private fields are never wrapped in a Proxy.
+            // Store in a ref — never in state — so Twilio's internal private
+            // fields are never wrapped in a React/Vue Proxy.
             const device = new Twilio.Device(token, {
                 logLevel: 1,
                 codecPreferences: ['opus', 'pcmu'],
@@ -300,7 +428,11 @@ function PhoneApp() {
             });
             twilioDevice.current = device;
 
-            device.on('registered', () => setTwilioReady(true));
+            device.on('registered', () => {
+                setTwilioReady(true);
+                // Refresh online users when we ourselves come online
+                loadOnlineUsers();
+            });
 
             device.on('incoming', (call) => {
                 setIncomingCall({ call, fromName: call.parameters.From || 'Unknown' });
@@ -322,17 +454,23 @@ function PhoneApp() {
     useEffect(() => {
         if (!tokenRef.current) { window.location.href = '/index.html'; return; }
         loadContacts();
+        loadOnlineUsers();
         loadCallHistory();
         initTwilio();
+
+        // Refresh online users every 30 s so status stays current
+        const onlineInterval = setInterval(loadOnlineUsers, 30_000);
+
         return () => {
             if (twilioDevice.current) twilioDevice.current.destroy();
             clearInterval(callTimerInterval.current);
+            clearInterval(onlineInterval);
         };
     }, []);
 
     /* ── Call lifecycle ─────────────────────────────────────────── */
-    function startActiveCall(remoteName) {
-        setActiveCall({ remoteName });
+    function startActiveCall(remoteName, isAppCall = false) {
+        setActiveCall({ remoteName, isAppCall });
         if (!callTimerInterval.current) {
             setCallSeconds(0);
             callTimerInterval.current = setInterval(() => setCallSeconds(s => s + 1), 1000);
@@ -349,20 +487,38 @@ function PhoneApp() {
             await api(`/api/calls/${currentCallRecordId.current}/status?status=${status}`, { method: 'PUT' });
             currentCallRecordId.current = null;
         }
-        await loadCallHistory();
+        await Promise.all([loadCallHistory(), loadOnlineUsers(), loadContacts()]);
     }
 
-    async function dial(rawNumber, displayName) {
+    /**
+     * Core dial function.
+     *
+     * @param rawNumber  - E.164 or local phone number string (used for PSTN and display)
+     * @param displayName - Human-readable label for the call screen
+     * @param appUsername - If set, dials via Twilio Client (in-app, free); otherwise PSTN
+     * @param appUserId   - Used to create the call record for app-to-app calls
+     */
+    async function dial(rawNumber, displayName, appUsername = null, appUserId = null) {
         setCallError('');
         if (!twilioReady) { setCallError('Phone not ready yet. Please wait.'); return; }
-        const to    = formatNumber(rawNumber);
-        const label = displayName || to;
 
+        const isAppCall = !!appUsername;
+        const to        = isAppCall ? `client:${appUsername}` : formatNumber(rawNumber);
+        const label     = displayName || to;
+
+        // Create call record (best-effort)
         try {
-            const recRes = await api('/api/calls/pstn', {
-                method: 'POST',
-                body: JSON.stringify({ calleeNumber: to })
-            });
+            let recRes;
+            if (isAppCall && appUserId) {
+                // App-to-app — link the callee User entity
+                recRes = await api(`/api/calls/${appUserId}`, { method: 'POST' });
+            } else {
+                // PSTN — store the destination number
+                recRes = await api('/api/calls/pstn', {
+                    method: 'POST',
+                    body: JSON.stringify({ calleeNumber: to })
+                });
+            }
             if (recRes.ok) {
                 const record = await recRes.json();
                 currentCallRecordId.current = record.id;
@@ -375,16 +531,16 @@ function PhoneApp() {
             const call = await twilioDevice.current.connect({ params: { To: to } });
             currentCall.current = call;
 
-            call.on('accept',     ()    => {
-                startActiveCall(label);
+            call.on('accept', () => {
+                startActiveCall(label, isAppCall);
                 api(`/api/calls/${currentCallRecordId.current}/status?status=ANSWERED`, { method: 'PUT' });
             });
-            call.on('disconnect', ()    => endActiveCall('ENDED'));
-            call.on('cancel',     ()    => endActiveCall('MISSED'));
-            call.on('error',      (err) => { setCallError(err.message); endActiveCall('MISSED'); });
+            call.on('disconnect', () => endActiveCall('ENDED'));
+            call.on('cancel',     () => endActiveCall('MISSED'));
+            call.on('error', (err) => { setCallError(err.message); endActiveCall('MISSED'); });
 
-            startActiveCall(label);
-            setActiveTab('dialpad'); // keep dialpad tab active so the call view shows
+            startActiveCall(label, isAppCall);
+            setActiveTab('dialpad');
         } catch (e) {
             setCallError(e.message);
             endActiveCall('MISSED');
@@ -422,7 +578,7 @@ function PhoneApp() {
         await dial(raw);
     }
 
-    /* ── Incoming call actions ──────────────────────────────────── */
+    /* ── Incoming call ──────────────────────────────────────────── */
     async function acceptCall() {
         const { call, fromName } = incomingCall;
         setIncomingCall(null);
@@ -430,7 +586,7 @@ function PhoneApp() {
         currentCall.current = call;
         call.on('disconnect', () => endActiveCall('ENDED'));
         call.on('error',      () => endActiveCall('ENDED'));
-        startActiveCall(fromName);
+        startActiveCall(fromName, false);
     }
 
     function rejectCall() {
@@ -451,22 +607,38 @@ function PhoneApp() {
         }
     }
 
-    /* ── Call history ───────────────────────────────────────────── */
+    /* ── Call history call-back ─────────────────────────────────── */
     function callBack(call) {
         const isCaller = call.caller.id === currentUser.id;
+
         if (isCaller) {
-            const num = call.calleeNumber || (call.callee && call.callee.phoneNumber);
-            if (num) dial(num, call.calleeNumber ? call.calleeNumber : call.callee?.displayName);
+            if (call.callee) {
+                // Was an app-to-app call — try in-app again (callee may be online now)
+                const callee = call.callee;
+                const contact = contacts.find(c => c.appUsername === callee.username);
+                const online  = contact?.appStatus === 'ONLINE' || onlineUsers.some(u => u.id === callee.id);
+                dial(callee.phoneNumber || '', callee.displayName,
+                     online ? callee.username : null,
+                     online ? callee.id        : null);
+            } else {
+                const num = call.calleeNumber;
+                if (num) dial(num, num);
+            }
         } else {
-            const num = call.caller.phoneNumber;
-            if (num) dial(num, call.caller.displayName);
+            const caller = call.caller;
+            const online  = onlineUsers.some(u => u.id === caller.id);
+            dial(caller.phoneNumber || '', caller.displayName,
+                 online ? caller.username : null,
+                 online ? caller.id        : null);
         }
+        setActiveTab('dialpad');
     }
 
     /* ── Status / auth ──────────────────────────────────────────── */
     async function changeStatus(newStatus) {
         setMyStatus(newStatus);
         await api(`/api/users/status?status=${newStatus}`, { method: 'PUT' });
+        await loadOnlineUsers();
     }
 
     function logout() {
@@ -481,11 +653,14 @@ function PhoneApp() {
     /* ── Shared panel props ─────────────────────────────────────── */
     const contactsPanelProps = {
         contacts,
-        onCall: c => { dial(c.phoneNumber, c.name); setActiveTab('dialpad'); },
+        onCallPstn: c => { dial(c.phoneNumber, c.name); setActiveTab('dialpad'); },
+        onCallApp:  (phone, name, username, id) => { dial(phone, name, username, id); setActiveTab('dialpad'); },
         showAddContact, setShowAddContact,
         newContact, setNewContact,
         onAddContact: addContact,
-        addContactError
+        addContactError,
+        onlineUsers,
+        currentUserId: currentUser.id
     };
 
     const dialpadPanelProps = {
@@ -505,15 +680,13 @@ function PhoneApp() {
 
     const historyPanelProps = {
         callHistory, currentUser,
-        onCallBack: c => { callBack(c); setActiveTab('dialpad'); }
+        onCallBack: callBack
     };
 
-    // The center panel is shared between desktop and mobile
     const centerPanel = activeCall
         ? <ActiveCallView {...activeCallProps} />
         : <DialpadPanel {...dialpadPanelProps} />;
 
-    // On mobile, which tab class to show (controls CSS visibility)
     const bodyClass = `app-body tab-${activeTab}${activeCall ? ' in-call' : ''}`;
 
     return (
@@ -526,7 +699,6 @@ function PhoneApp() {
                 />
             )}
 
-            {/* ── Header ── */}
             <header className="app-header">
                 <div className="header-left">
                     <span className="logo">&#9742; Phone App</span>
@@ -543,17 +715,12 @@ function PhoneApp() {
                 </div>
             </header>
 
-            {/* ── Main panels ── */}
-            {/* On desktop all 3 panels show side-by-side via flex.          */}
-            {/* On mobile, CSS hides non-active panels; tab-* class controls */}
-            {/* which one is visible. In-call always shows the center panel. */}
             <div className={bodyClass}>
                 <ContactsPanel {...contactsPanelProps} />
                 {centerPanel}
                 <HistoryPanel {...historyPanelProps} />
             </div>
 
-            {/* ── Bottom nav (mobile only, hidden via CSS on desktop) ── */}
             {!activeCall && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
         </>
     );

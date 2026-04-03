@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -54,5 +55,17 @@ public class UserService {
         User user = findByUsername(username);
         user.setStatus(status);
         userRepository.save(user);
+    }
+
+    public List<UserDto> getOnlineUsers() {
+        return userRepository.findByStatus("ONLINE").stream()
+                .map(UserDto::from)
+                .toList();
+    }
+
+    public List<String> getOnlineUsernames() {
+        return userRepository.findByStatus("ONLINE").stream()
+                .map(User::getUsername)
+                .toList();
     }
 }

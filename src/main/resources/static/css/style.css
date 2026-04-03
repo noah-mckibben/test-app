@@ -135,6 +135,40 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 
 .error-msg { color: var(--red); font-size: 13px; text-align: center; margin-top: 8px; }
 
+/* Contact section headers (Online / In-App / External) */
+.contact-section-header {
+    padding: 5px 12px 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg);
+    list-style: none;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Dual call-button group (in-app + PSTN side by side) */
+.call-btn-group { display: flex; gap: 4px; align-items: center; }
+
+/* In-app call button — blue tint to distinguish from PSTN */
+.btn-call-sm.app-call { color: var(--accent); }
+
+/* "In-App" badge on active call view and history items */
+.app-call-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.app-call-badge.small { font-size: 9px; padding: 1px 5px; }
+
 /* ── Bottom navigation (hidden on desktop) ───────────────────────── */
 .bottom-nav { display: none; }
 

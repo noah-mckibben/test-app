@@ -26,6 +26,11 @@ public class UserController {
         return ResponseEntity.ok(UserDto.from(user));
     }
 
+    @GetMapping("/online")
+    public ResponseEntity<List<UserDto>> getOnlineUsers() {
+        return ResponseEntity.ok(userService.getOnlineUsers());
+    }
+
     @GetMapping("/search")
     public ResponseEntity<List<UserDto>> searchUsers(@RequestParam String q) {
         return ResponseEntity.ok(userService.searchUsers(q));

@@ -24,15 +24,25 @@ public class ContactService {
     public List<ContactDto> getContacts(String username) {
         User owner = userRepository.findByUsername(username).orElseThrow();
         return contactRepository.findByOwner(owner).stream()
-                .map(ContactDto::from)
+                .map(this::enrichContact)
                 .toList();
     }
 
     public List<ContactDto> searchContacts(String username, String name) {
         User owner = userRepository.findByUsername(username).orElseThrow();
         return contactRepository.findByOwnerAndNameContainingIgnoreCase(owner, name).stream()
-                .map(ContactDto::from)
+                .map(this::enrichContact)
                 .toList();
+    }
+
+    /**
+     * Builds a ContactDto and, if the contact's phone number matches a
+     * registered app user, populates the appUserId/appUsername/appStatus fields
+     * so the frontend can offer in-app calling.
+     */
+    private ContactDto enrichContact(com.nmckibben.testapp.entity.Contact contact) {
+        User appUser = userRepository.findByPhoneNumber(contact.getPhoneNumber()).orElse(null);
+        return ContactDto.from(contact, appUser);
     }
 
     public ContactDto addContact(String ownerUsername, AddContactRequest request) {
