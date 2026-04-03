@@ -135,6 +135,29 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 
 .error-msg { color: var(--red); font-size: 13px; text-align: center; margin-top: 8px; }
 
+/* User search bar in contacts panel */
+.user-search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+}
+.user-search-row .search-input { flex: 1; }
+.btn-search-clear {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+}
+.btn-search-clear:hover { color: var(--text); }
+
+/* Dimmed in-app call button (user offline) */
+.btn-call-sm.app-call.dim { opacity: 0.45; }
+
 /* Contact section headers (Online / In-App / External) */
 .contact-section-header {
     padding: 5px 12px 3px;

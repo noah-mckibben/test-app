@@ -43,7 +43,8 @@ function ContactsPanel({
     contacts, onCallPstn, onCallApp,
     showAddContact, setShowAddContact,
     newContact, setNewContact, onAddContact, addContactError,
-    onlineUsers, currentUserId
+    onlineUsers, currentUserId,
+    userSearch, setUserSearch, userResults, onSearchUsers
 }) {
     // Separate contacts by whether they have an online app user match
     const appOnline  = contacts.filter(c => c.appStatus === 'ONLINE');
@@ -56,21 +57,43 @@ function ContactsPanel({
         u => u.id !== currentUserId && !contactAppUserIds.has(u.id)
     );
 
+    const isSearching = userSearch.trim().length > 0;
+
     function statusDot(status) {
         const cls = status === 'ONLINE' ? 'online' : status === 'BUSY' ? 'busy' : 'offline';
         return <span className={`status-dot ${cls}`} style={{ marginRight: 6 }} />;
+    }
+
+    function statusLabel(status) {
+        if (status === 'ONLINE') return 'Online';
+        if (status === 'BUSY')   return 'Busy';
+        return 'Offline';
     }
 
     return (
         <aside className="panel contacts-panel">
             <div className="panel-header">
                 <h3>Contacts</h3>
-                <button className="btn-add-contact" onClick={() => setShowAddContact(v => !v)}>
+                <button className="btn-add-contact" onClick={() => { setShowAddContact(v => !v); setUserSearch(''); }}>
                     {showAddContact ? '✕' : '+'}
                 </button>
             </div>
 
-            {showAddContact && (
+            {/* ── User search bar ─────────────────────────────────── */}
+            <div className="user-search-row">
+                <input
+                    className="search-input"
+                    value={userSearch}
+                    onChange={e => { setUserSearch(e.target.value); onSearchUsers(e.target.value); }}
+                    placeholder="Search users by name or username…"
+                    type="search"
+                />
+                {userSearch && (
+                    <button className="btn-search-clear" onClick={() => { setUserSearch(''); }}>✕</button>
+                )}
+            </div>
+
+            {showAddContact && !isSearching && (
                 <div className="add-contact-drawer">
                     <input
                         value={newContact.name}
@@ -94,110 +117,169 @@ function ContactsPanel({
             )}
 
             <ul className="contact-list">
-                {/* ── Online app users not yet saved as contacts ─── */}
-                {onlineNotInContacts.length > 0 && (
-                    <>
-                        <li className="contact-section-header">Online Now</li>
-                        {onlineNotInContacts.map(u => (
-                            <li key={`online-${u.id}`} className="contact-item">
-                                <div className="contact-info">
-                                    {statusDot('ONLINE')}
-                                    <span className="contact-name">{u.displayName}</span>
-                                    <span className="contact-username">{u.username}</span>
-                                </div>
-                                <button
-                                    className="btn-call-sm app-call"
-                                    onClick={() => onCallApp(u.phoneNumber, u.displayName, u.username, u.id)}
-                                    title="Call in-app (free)"
-                                >
-                                    &#9742;
-                                </button>
-                            </li>
-                        ))}
-                    </>
-                )}
 
-                {/* ── Contacts who are online app users ─────────── */}
-                {appOnline.length > 0 && (
+                {/* ════════════════════════════════════════════════
+                    USER SEARCH RESULTS
+                    Shown only while the search bar has input.
+                    ════════════════════════════════════════════════ */}
+                {isSearching && (
                     <>
-                        <li className="contact-section-header">In-App · Online</li>
-                        {appOnline.map(c => (
-                            <li key={c.id} className="contact-item">
+                        {userResults.length === 0 && (
+                            <li className="empty-hint">No users found.</li>
+                        )}
+                        {userResults.map(u => (
+                            <li key={`search-${u.id}`} className="contact-item">
                                 <div className="contact-info">
-                                    {statusDot('ONLINE')}
-                                    <span className="contact-name">{c.name}</span>
-                                    <span className="contact-username">{c.phoneNumber}</span>
+                                    {statusDot(u.status)}
+                                    <span className="contact-name">{u.displayName}</span>
+                                    <span className="contact-username">@{u.username}</span>
                                 </div>
                                 <div className="call-btn-group">
+                                    {/* In-app call — always available for app users */}
                                     <button
-                                        className="btn-call-sm app-call"
-                                        onClick={() => onCallApp(c.phoneNumber, c.name, c.appUsername, c.appUserId)}
-                                        title="Call in-app (free)"
+                                        className={`btn-call-sm app-call${u.status !== 'ONLINE' ? ' dim' : ''}`}
+                                        onClick={() => onCallApp(u.phoneNumber || '', u.displayName, u.username, u.id)}
+                                        title={u.status === 'ONLINE' ? 'Call in-app' : `Call in-app (${statusLabel(u.status)})`}
                                     >
                                         &#9742;
                                     </button>
-                                    <button
-                                        className="btn-call-sm"
-                                        onClick={() => onCallPstn(c)}
-                                        title="Call phone number"
-                                    >
-                                        &#128222;
-                                    </button>
+                                    {/* PSTN fallback when they have a phone number */}
+                                    {u.phoneNumber && (
+                                        <button
+                                            className="btn-call-sm"
+                                            onClick={() => onCallPstn({ phoneNumber: u.phoneNumber, name: u.displayName })}
+                                            title="Call phone number"
+                                        >
+                                            &#128222;
+                                        </button>
+                                    )}
                                 </div>
                             </li>
                         ))}
                     </>
                 )}
 
-                {/* ── Contacts who are app users but offline ─────── */}
-                {appOffline.length > 0 && (
+                {/* ════════════════════════════════════════════════
+                    REGULAR CONTACT LIST
+                    Shown when the search bar is empty.
+                    ════════════════════════════════════════════════ */}
+                {!isSearching && (
                     <>
-                        <li className="contact-section-header">In-App · Offline</li>
-                        {appOffline.map(c => (
-                            <li key={c.id} className="contact-item">
-                                <div className="contact-info">
-                                    {statusDot(c.appStatus || 'OFFLINE')}
-                                    <span className="contact-name">{c.name}</span>
-                                    <span className="contact-username">{c.phoneNumber}</span>
-                                </div>
-                                <button
-                                    className="btn-call-sm"
-                                    onClick={() => onCallPstn(c)}
-                                    title="Call phone number"
-                                >
-                                    &#9742;
-                                </button>
-                            </li>
-                        ))}
-                    </>
-                )}
-
-                {/* ── External-only contacts (no app account) ───── */}
-                {pstnOnly.length > 0 && (
-                    <>
-                        {(appOnline.length > 0 || appOffline.length > 0 || onlineNotInContacts.length > 0) && (
-                            <li className="contact-section-header">External</li>
+                        {/* ── Online app users not yet saved as contacts ─── */}
+                        {onlineNotInContacts.length > 0 && (
+                            <>
+                                <li className="contact-section-header">Online Now</li>
+                                {onlineNotInContacts.map(u => (
+                                    <li key={`online-${u.id}`} className="contact-item">
+                                        <div className="contact-info">
+                                            {statusDot('ONLINE')}
+                                            <span className="contact-name">{u.displayName}</span>
+                                            <span className="contact-username">@{u.username}</span>
+                                        </div>
+                                        <button
+                                            className="btn-call-sm app-call"
+                                            onClick={() => onCallApp(u.phoneNumber || '', u.displayName, u.username, u.id)}
+                                            title="Call in-app (free)"
+                                        >
+                                            &#9742;
+                                        </button>
+                                    </li>
+                                ))}
+                            </>
                         )}
-                        {pstnOnly.map(c => (
-                            <li key={c.id} className="contact-item">
-                                <div className="contact-info">
-                                    <span className="contact-name">{c.name}</span>
-                                    <span className="contact-username">{c.phoneNumber}</span>
-                                </div>
-                                <button
-                                    className="btn-call-sm"
-                                    onClick={() => onCallPstn(c)}
-                                    title="Call phone number"
-                                >
-                                    &#9742;
-                                </button>
-                            </li>
-                        ))}
-                    </>
-                )}
 
-                {contacts.length === 0 && onlineNotInContacts.length === 0 && (
-                    <li className="empty-hint">No contacts yet.<br />Click <strong>+</strong> to add one.</li>
+                        {/* ── Contacts who are online app users ─────────── */}
+                        {appOnline.length > 0 && (
+                            <>
+                                <li className="contact-section-header">In-App · Online</li>
+                                {appOnline.map(c => (
+                                    <li key={c.id} className="contact-item">
+                                        <div className="contact-info">
+                                            {statusDot('ONLINE')}
+                                            <span className="contact-name">{c.name}</span>
+                                            <span className="contact-username">@{c.appUsername}</span>
+                                        </div>
+                                        <div className="call-btn-group">
+                                            <button
+                                                className="btn-call-sm app-call"
+                                                onClick={() => onCallApp(c.phoneNumber, c.name, c.appUsername, c.appUserId)}
+                                                title="Call in-app (free)"
+                                            >
+                                                &#9742;
+                                            </button>
+                                            <button
+                                                className="btn-call-sm"
+                                                onClick={() => onCallPstn(c)}
+                                                title="Call phone number"
+                                            >
+                                                &#128222;
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </>
+                        )}
+
+                        {/* ── Contacts who are app users but offline ─────── */}
+                        {appOffline.length > 0 && (
+                            <>
+                                <li className="contact-section-header">In-App · Offline</li>
+                                {appOffline.map(c => (
+                                    <li key={c.id} className="contact-item">
+                                        <div className="contact-info">
+                                            {statusDot(c.appStatus || 'OFFLINE')}
+                                            <span className="contact-name">{c.name}</span>
+                                            <span className="contact-username">@{c.appUsername}</span>
+                                        </div>
+                                        <div className="call-btn-group">
+                                            <button
+                                                className="btn-call-sm app-call dim"
+                                                onClick={() => onCallApp(c.phoneNumber, c.name, c.appUsername, c.appUserId)}
+                                                title="Call in-app (offline)"
+                                            >
+                                                &#9742;
+                                            </button>
+                                            <button
+                                                className="btn-call-sm"
+                                                onClick={() => onCallPstn(c)}
+                                                title="Call phone number"
+                                            >
+                                                &#128222;
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </>
+                        )}
+
+                        {/* ── External-only contacts (no app account) ───── */}
+                        {pstnOnly.length > 0 && (
+                            <>
+                                {(appOnline.length > 0 || appOffline.length > 0 || onlineNotInContacts.length > 0) && (
+                                    <li className="contact-section-header">External</li>
+                                )}
+                                {pstnOnly.map(c => (
+                                    <li key={c.id} className="contact-item">
+                                        <div className="contact-info">
+                                            <span className="contact-name">{c.name}</span>
+                                            <span className="contact-username">{c.phoneNumber}</span>
+                                        </div>
+                                        <button
+                                            className="btn-call-sm"
+                                            onClick={() => onCallPstn(c)}
+                                            title="Call phone number"
+                                        >
+                                            &#9742;
+                                        </button>
+                                    </li>
+                                ))}
+                            </>
+                        )}
+
+                        {contacts.length === 0 && onlineNotInContacts.length === 0 && (
+                            <li className="empty-hint">No contacts yet.<br />Click <strong>+</strong> to add one.</li>
+                        )}
+                    </>
                 )}
             </ul>
         </aside>
@@ -367,6 +449,8 @@ function PhoneApp() {
     const [showAddContact, setShowAddContact] = useState(false);
     const [newContact,     setNewContact]     = useState({ name: '', phoneNumber: '' });
     const [addContactError,setAddContactError]= useState('');
+    const [userSearch,     setUserSearch]     = useState('');
+    const [userResults,    setUserResults]    = useState([]);
     const [dialInput,      setDialInput]      = useState('');
     const [dialSuggestions,setDialSuggestions]= useState([]);
     const [callError,      setCallError]      = useState('');
@@ -410,6 +494,16 @@ function PhoneApp() {
     async function loadCallHistory() {
         const res = await api('/api/calls');
         setCallHistory(await res.json());
+    }
+
+    async function searchUsers(query) {
+        if (!query.trim()) { setUserResults([]); return; }
+        const res = await api(`/api/users/search?q=${encodeURIComponent(query.trim())}`);
+        if (res.ok) {
+            const all = await res.json();
+            // Exclude the logged-in user from results
+            setUserResults(all.filter(u => u.id !== currentUser.id));
+        }
     }
 
     /* ── Twilio init ────────────────────────────────────────────── */
@@ -660,7 +754,10 @@ function PhoneApp() {
         onAddContact: addContact,
         addContactError,
         onlineUsers,
-        currentUserId: currentUser.id
+        currentUserId: currentUser.id,
+        userSearch, setUserSearch,
+        userResults,
+        onSearchUsers: searchUsers
     };
 
     const dialpadPanelProps = {
