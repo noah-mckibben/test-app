@@ -4,42 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phone App</title>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div id="app">
-        <div class="auth-wrap">
-            <div class="auth-box">
-                <div class="auth-logo">&#9742;</div>
-                <h1>Phone App</h1>
-                <div class="tabs">
-                    <button :class="{active: tab === 'login'}" @click="tab = 'login'">Login</button>
-                    <button :class="{active: tab === 'register'}" @click="tab = 'register'">Register</button>
-                </div>
-
-                <div v-if="tab === 'login'" class="form">
-                    <input v-model="username" type="text" placeholder="Username" @keyup.enter="login">
-                    <input v-model="password" type="password" placeholder="Password" @keyup.enter="login">
-                    <button class="btn-primary" @click="login" :disabled="loading">
-                        {{ loading ? 'Logging in...' : 'Login' }}
-                    </button>
-                </div>
-
-                <div v-if="tab === 'register'" class="form">
-                    <input v-model="username" type="text" placeholder="Username">
-                    <input v-model="displayName" type="text" placeholder="Display Name">
-                    <input v-model="phoneNumber" type="tel" placeholder="Phone Number (e.g. 5551234567)">
-                    <input v-model="password" type="password" placeholder="Password">
-                    <button class="btn-primary" @click="register" :disabled="loading">
-                        {{ loading ? 'Registering...' : 'Create Account' }}
-                    </button>
-                </div>
-
-                <p v-if="error" class="error-msg">{{ error }}</p>
-            </div>
-        </div>
-    </div>
-    <script src="/js/auth.js"></script>
+    <div id="root"></div>
+    <script type="text/babel" src="/js/auth.js"></script>
 </body>
 </html>

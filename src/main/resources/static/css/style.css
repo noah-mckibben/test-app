@@ -134,3 +134,77 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 .history-time { display: block; font-size: 11px; color: var(--text-muted); }
 
 .error-msg { color: var(--red); font-size: 13px; text-align: center; margin-top: 8px; }
+
+/* ── Bottom navigation (hidden on desktop) ───────────────────────── */
+.bottom-nav { display: none; }
+
+/* ── Mobile responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+    body { overflow: hidden; }
+
+    /* Shrink header so bottom nav fits */
+    .app-body { height: calc(100vh - 56px - 64px); overflow: hidden; }
+
+    /* Stack panels vertically; hide all by default */
+    .app-body { flex-direction: column; }
+    .app-body .contacts-panel,
+    .app-body .center-panel,
+    .app-body .history-panel { display: none; width: 100%; min-width: 0; border-right: none; }
+
+    /* Show only the active tab's panel */
+    .app-body.tab-contacts .contacts-panel { display: flex; flex: 1; }
+    .app-body.tab-dialpad  .center-panel   { display: flex; flex: 1; }
+    .app-body.tab-history  .history-panel  { display: flex; flex: 1; }
+
+    /* During an active call, always show the center panel */
+    .app-body.in-call .center-panel { display: flex; flex: 1; }
+
+    /* Bottom nav */
+    .bottom-nav {
+        display: flex;
+        height: 64px;
+        flex-shrink: 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+    }
+    .bottom-nav-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 11px;
+        transition: color .2s;
+        padding: 8px 0;
+    }
+    .bottom-nav-btn.active { color: var(--accent); }
+    .bottom-nav-icon { font-size: 22px; line-height: 1; }
+
+    /* Larger touch targets */
+    .dial-key     { height: 72px; font-size: 22px; }
+    .btn-call     { padding: 16px 56px; font-size: 17px; }
+    .contact-item { padding: 14px 12px; }
+    .history-item { padding: 14px 12px; }
+    .ctrl-btn     { width: 68px; height: 68px; font-size: 26px; }
+
+    /* Dialpad fills available width on small screens */
+    .dialpad-view      { padding: 16px; gap: 12px; }
+    .dial-display-wrap { width: 100%; max-width: 340px; }
+    .dialpad-grid      { grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 340px; }
+
+    /* Active call full-screen feel */
+    .active-call-view { padding: 48px 32px; justify-content: center; }
+
+    /* Hide verbose header text to save space */
+    .user-name  { display: none; }
+    .status-dot { display: none; }
+
+    /* Contacts & history panels fill height */
+    .contacts-panel,
+    .history-panel { width: 100%; border-right: none; }
+}
