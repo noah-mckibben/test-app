@@ -1,4 +1,4 @@
-const { createApp } = Vue;
+const { createApp, markRaw } = Vue;
 
 createApp({
     data() {
@@ -65,11 +65,11 @@ createApp({
                 if (!res.ok) throw new Error('Could not get Twilio token');
                 const { token } = await res.json();
 
-                this.twilioDevice = new Twilio.Device(token, {
+                this.twilioDevice = markRaw(new Twilio.Device(token, {
                     logLevel: 1,
                     codecPreferences: ['opus', 'pcmu'],
                     edge: 'roaming'
-                });
+                }));
 
                 this.twilioDevice.on('registered', () => {
                     this.twilioReady = true;
