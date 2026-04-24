@@ -33,8 +33,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Static frontend files
-                .requestMatchers("/", "/index.html", "/app.html", "/js/**", "/css/**").permitAll()
+                // SPA shell and Vite-built static assets
+                .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
+                // SPA client-side routes — served by SpaController as index.html
+                .requestMatchers("/login", "/dashboard", "/dialpad", "/contacts", "/agents", "/settings").permitAll()
                 // Auth endpoints (login, register)
                 .requestMatchers("/api/auth/**").permitAll()
                 // Twilio webhook — must be public so Twilio servers can POST to it

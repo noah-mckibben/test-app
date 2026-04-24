@@ -18,6 +18,20 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Handles Twilio Voice integration: access token generation and TwiML call routing.
+ *
+ * <h2>Call routing logic (POST /voice)</h2>
+ * <ol>
+ *   <li><b>Outbound PSTN</b> – {@code To} is a real phone number (e.g. {@code +15559876543}).
+ *       Responds with {@code <Dial><Number>…</Number></Dial>}.</li>
+ *   <li><b>App-to-app</b> – {@code To} starts with {@code client:} (e.g. {@code client:alice}).
+ *       Responds with {@code <Dial><Client>alice</Client></Dial>}.</li>
+ *   <li><b>Inbound PSTN</b> – {@code To} is blank or equals the Twilio phone number.
+ *       Simulrings all currently {@code ONLINE} users. If nobody is online, plays a
+ *       "no one available" message.</li>
+ * </ol>
+ */
 @RestController
 @RequestMapping("/api/twilio")
 public class TwilioController {
@@ -45,6 +59,16 @@ public class TwilioController {
 
     // ── Access token for the browser SDK ─────────────────────────────────────
 
+    /**
+     * Issues a short-lived Twilio Access Token for the browser Voice SDK.
+     *
+     * <p>The token includes a {@link VoiceGrant} that authorises both outbound calls
+     * (via the configured TwiML App) and inbound calls to this client identity.
+     * The client identity is set to the authenticated user's username.
+     *
+     * @return 200 with {@code { token: "…", identity: "username" }},
+     *         401 if not authenticated, or 500 with debug details on SDK errors
+     */
     @GetMapping("/token")
     public ResponseEntity<Map<String, Object>> getToken(@AuthenticationPrincipal UserDetails userDetails) {
         try {
@@ -94,6 +118,17 @@ public class TwilioController {
     //     Action: simulring every ONLINE user; first to answer takes the call.
     //             If no one is online, play a message.
 
+    /**
+     * TwiML webhook called by Twilio whenever a call is initiated or received.
+     *
+     * <p>Twilio posts the {@code To} and {@code From} parameters; this method inspects
+     * {@code To} to determine which call flow to execute (see class-level Javadoc).
+     * Must be publicly accessible (no JWT required) so Twilio's servers can reach it.
+     *
+     * @param To   destination identity/number supplied by Twilio; may be null on some inbound calls
+     * @param From caller ID supplied by Twilio
+     * @return TwiML XML string instructing Twilio how to route the call
+     */
     @PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(
             @RequestParam(required = false) String To,
