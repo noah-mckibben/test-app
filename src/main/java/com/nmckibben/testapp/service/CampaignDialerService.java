@@ -5,6 +5,7 @@ import com.nmckibben.testapp.entity.CampaignContact;
 import com.nmckibben.testapp.entity.SystemEvent;
 import com.nmckibben.testapp.repository.CampaignContactRepository;
 import com.nmckibben.testapp.repository.CampaignRepository;
+import com.twilio.http.HttpMethod;
 import com.twilio.rest.api.v2010.account.Call;
 import com.twilio.type.PhoneNumber;
 import org.springframework.beans.factory.annotation.Value;
@@ -108,7 +109,7 @@ public class CampaignDialerService {
             )
             .setStatusCallback(baseUrl + "/api/twilio/campaign/" + campaign.getId()
                     + "/status?contactId=" + contact.getId())
-            .setStatusCallbackMethod("POST")
+            .setStatusCallbackMethod(HttpMethod.POST)
             .create();
 
             SystemEvent e = SystemEvent.of("CAMPAIGN_DIAL", "INFO", "CampaignDialer",
