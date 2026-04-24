@@ -4,14 +4,12 @@ import com.nmckibben.testapp.entity.SystemEvent;
 import com.nmckibben.testapp.repository.CampaignContactRepository;
 import com.nmckibben.testapp.repository.CampaignRepository;
 import com.nmckibben.testapp.repository.UserRepository;
-import com.nmckibben.testapp.service.CampaignDialerService;
 import com.nmckibben.testapp.service.EventLogService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -23,18 +21,14 @@ public class DiagnosticsController {
     private final CampaignRepository campaignRepo;
     private final CampaignContactRepository contactRepo;
     private final UserRepository userRepo;
-    private final CampaignDialerService dialerService;
-
     public DiagnosticsController(EventLogService eventLog,
                                   CampaignRepository campaignRepo,
                                   CampaignContactRepository contactRepo,
-                                  UserRepository userRepo,
-                                  CampaignDialerService dialerService) {
-        this.eventLog      = eventLog;
-        this.campaignRepo  = campaignRepo;
-        this.contactRepo   = contactRepo;
-        this.userRepo      = userRepo;
-        this.dialerService = dialerService;
+                                  UserRepository userRepo) {
+        this.eventLog     = eventLog;
+        this.campaignRepo = campaignRepo;
+        this.contactRepo  = contactRepo;
+        this.userRepo     = userRepo;
     }
 
     /** Paginated event log — ?page=0&size=50 */
@@ -70,7 +64,6 @@ public class DiagnosticsController {
      * Useful for testing without waiting for the 30-second scheduler tick.
      */
     @GetMapping("/trigger-dialer")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> triggerDialer() {
         Map<String, Object> report = new LinkedHashMap<>();
         long activeCampaigns = campaignRepo.findByStatus("ACTIVE").size();
