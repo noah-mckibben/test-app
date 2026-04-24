@@ -23,7 +23,7 @@ export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns]       = useState([])
   const [workTypes, setWorkTypes]       = useState([])
   const [callFlows, setCallFlows]       = useState([])
-  const [selected, setSelected]         = useState(null)   // campaign being viewed
+  const [selected, setSelected]         = useState(null)
   const [contacts, setContacts]         = useState([])
   const [stats, setStats]               = useState(null)
   const [showForm, setShowForm]         = useState(false)
@@ -67,6 +67,13 @@ export default function AdminCampaignsPage() {
     load(); if (selected?.id === id) setSelected(s => ({...s, status}))
   }
 
+  async function setDialingMode(mode) {
+    const updated = { ...selected, dialingMode: mode }
+    await api(`/api/admin/campaigns/${selected.id}`, { method: 'PUT', body: JSON.stringify(updated) })
+    setSelected(updated)
+    load()
+  }
+
   async function uploadCsv() {
     const lines = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean)
     for (const line of lines) {
@@ -93,11 +100,18 @@ export default function AdminCampaignsPage() {
 
   if (selected) return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <button onClick={() => setSelected(null)} className="text-sm text-blue-600 hover:underline">← Campaigns</button>
         <ChevronRight size={14} className="text-gray-400" />
         <span className="text-sm font-semibold text-gray-800">{selected.name}</span>
         <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[selected.status]}`}>{selected.status}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-xs text-gray-400 font-medium">Mode:</label>
+          <select value={selected.dialingMode} onChange={e => setDialingMode(e.target.value)}
+            className="text-xs font-semibold border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-blue-400 cursor-pointer">
+            {MODES.map(m => <option key={m}>{m}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Stats bar */}
