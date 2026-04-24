@@ -1,6 +1,6 @@
-# test-app
+# Contact Center Platform
 
-A Spring Boot voice-calling application that lets registered users make audio calls to each other in-browser (via WebRTC) and to real phone numbers (via Twilio). Inbound calls to your Twilio number ring all online users simultaneously.
+A full-stack contact center platform built on **Spring Boot 3** and **React 18**. It supports inbound and outbound voice calling via the Twilio Programmable Voice SDK, agent management, outbound campaign dialing with configurable recycling, work type queues with DNIS/TFN numbering plans, visual call flow (IVR) design, and a real-time agent presence system.
 
 ---
 
@@ -8,31 +8,40 @@ A Spring Boot voice-calling application that lets registered users make audio ca
 
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
-- [Call Flows](#call-flows)
+- [Features](#features)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
 - [Running Locally](#running-locally)
+- [Deployment](#deployment)
 - [API Reference](#api-reference)
-- [WebSocket Signaling Protocol](#websocket-signaling-protocol)
+- [Data Model](#data-model)
+- [WebSocket Signaling](#websocket-signaling)
 
 ---
 
 ## Architecture
 
 ```
-Browser (HTML/JS)
+Browser (React 18 / Vite)
   │
-  ├── REST (HTTP/HTTPS)  ──►  Spring Boot API  ──►  SQL Server DB
+  ├── REST (HTTPS)           ──►  Spring Boot API  ──►  SQL Server (Azure)
   │
-  ├── WebSocket (/ws/signal)  ──►  SignalingHandler  (relays WebRTC offers/answers/ICE)
+  ├── WebSocket (/ws/signal) ──►  SignalingHandler  (WebRTC offer/answer/ICE relay)
   │
-  └── Twilio Voice SDK  ──►  Twilio Cloud  ──►  /api/twilio/voice (TwiML webhook)
+  └── Twilio Voice SDK  ──►  Twilio Cloud
+                                  │
+                    ┌─────────────┴─────────────┐
+                    ▼                           ▼
+             Inbound PSTN               Outbound campaigns
+          (route by DNIS to            (CampaignDialerService
+           WorkType agents)             @Scheduled every 30s)
 ```
 
-- **In-app calls** use WebRTC for direct peer-to-peer audio after the signaling handshake completes.
-- **PSTN calls** (to/from real phone numbers) are brokered entirely by Twilio; audio flows through Twilio's infrastructure.
-- **Inbound calls** to your Twilio number simulring every user whose status is `ONLINE`.
+- **In-app calls** use WebRTC (peer-to-peer audio after signaling handshake).
+- **PSTN calls** route through Twilio; audio flows via Twilio's infrastructure.
+- **Inbound routing** matches the dialed number (DNIS) to a WorkType and rings only the agents staffed in that queue. Falls back to all online agents if the queue is empty.
+- **Outbound campaigns** are driven by a 30-second scheduler that dials contacts according to the campaign's dialing mode and uses the WorkType's DNIS as the outbound caller ID.
 
 ---
 
@@ -40,102 +49,150 @@ Browser (HTML/JS)
 
 | Layer | Technology |
 |---|---|
-| Backend | Java 17, Spring Boot 3, Spring Security |
-| Auth | JWT (JJWT library) |
-| Database | Microsoft SQL Server, Spring Data JPA / Hibernate |
+| Backend | Java 17, Spring Boot 3, Spring Security, Spring Data JPA |
+| Auth | JWT (JJWT), stateless sessions |
+| Database | Microsoft SQL Server (Azure SQL), Hibernate (DDL auto-update) |
 | Real-time | Spring WebSocket (`TextWebSocketHandler`) |
-| PSTN calling | Twilio Programmable Voice SDK |
-| Frontend | Vanilla HTML/CSS/JS, WebRTC |
+| Voice | Twilio Programmable Voice SDK (browser + REST) |
+| Frontend | React 18, Vite 4, React Router 6, Tailwind CSS, Lucide icons |
+| CI/CD | GitHub Actions → Azure App Service |
 
 ---
 
-## Call Flows
+## Features
 
-### In-App Call (WebRTC)
+### Agent Experience
+- **Profile dropdown** — embedded dialpad, contacts manager, and settings panel accessible from the navbar avatar button (no separate pages needed).
+- **Profile picture** — upload a photo from the profile dropdown; stored as a base64 data URL in the database and displayed everywhere immediately.
+- **Agent status** — ONLINE / BUSY / OFFLINE with live presence tracking; inbound calls only ring ONLINE agents.
+- **Embedded dialpad** — full keypad with name/number lookup, active call controls (mute, hang up), and recent call history.
+- **Contacts** — add, search, and delete personal contacts; click-to-dial directly into the embedded dialpad.
+- **In-app calls** — call other agents by username via WebRTC (no PSTN cost).
 
-```
-Caller                     Server (SignalingHandler)               Callee
-  │                                │                                  │
-  ├─ POST /api/calls/{calleeId} ──►│                                  │
-  │                                │                                  │
-  ├─ WS: call-request ────────────►├─ forward ──────────────────────►│
-  │                                │                                  │
-  │◄───────────────────────────────┤◄─ call-accept ──────────────────┤
-  │                                │                                  │
-  ├─ WS: offer ───────────────────►├─ forward ──────────────────────►│
-  │◄───────────────────────────────┤◄─ answer ───────────────────────┤
-  │                                │                                  │
-  ├─ WS: ice-candidate ───────────►├─ forward ──────────────────────►│
-  │◄───────────────────────────────┤◄─ ice-candidate ────────────────┤
-  │                                │                                  │
-  │◄══════════════════════ WebRTC audio (peer-to-peer) ══════════════►│
-```
+### Outbound Campaigns
+- **Dialing modes**: PREVIEW (agent-initiated), POWER (1 call/cycle), PREDICTIVE (3 calls/cycle), BLASTER (all contacts at once).
+- **Recycling**: configurable multi-pass recycling — choose how many passes, the inter-pass wait time, and which outcomes to recycle (no-answer, busy, voicemail, hard-failed). Optionally reset attempt counts each pass.
+- **Auto-completion**: campaign automatically marks itself COMPLETED when all contacts reach a terminal state (COMPLETED or FAILED) and no further recycling is possible.
+- **Per-campaign dialing mode** can be changed live from the campaign detail UI.
+- **CSV contact upload** — paste name/phone rows to bulk-import contacts.
+- **Contact list** shows status, last call outcome, and attempt count for every contact.
 
-### Outbound PSTN Call (Twilio)
+### Work Types & Numbering Plan
+- **Work Types** are queues that agents are staffed in. Campaigns are linked to a work type for routing.
+- **DNIS / TFN** — assign an E.164 Twilio number to each work type. Outbound campaign calls use this as the caller ID. Inbound calls to this number route to agents staffed in that queue.
+- **Call Flow assignment** — link a call flow (IVR) to a work type's number for inbound call handling.
+- **Agent staffing** — add/remove agents from a work type via a modal from the admin UI.
 
-```
-Browser  ──── Twilio Voice SDK ────►  Twilio Cloud
-                                          │
-                        POST /api/twilio/voice?To=+1555…
-                                          │
-                              ◄─── TwiML: <Dial><Number>…
-                                          │
-                                    PSTN destination
-```
+### Call Flows (IVR Builder)
+- Visual node-based IVR designer built on React Flow; the entire graph (nodes + edges) is stored as JSON.
+- Call flows are assigned to work types so inbound calls on a DNIS execute the correct flow.
 
-### Inbound PSTN Call
+### Admin Panel (ADMIN / SUPERVISOR roles)
+- **Users** — create, edit, delete agents; assign roles (ADMIN / SUPERVISOR / AGENT).
+- **Work Types** — manage queues, numbering plans, call flow assignments, and agent staffing.
+- **Campaigns** — create campaigns with recycling configuration; monitor contact progress; activate, pause, and recycle passes.
+- **Call Flows** — design and manage IVR flows.
+- **Integrations** — manage third-party integration configurations.
+- **Diagnostics** — view system events log, health dashboard (errors, warnings, active campaigns, online agents, pending contacts), and a manual dialer trigger endpoint for debugging.
 
-```
-External phone  ──►  Twilio Cloud  ──►  POST /api/twilio/voice
-                                              │
-                                   GET /api/users/online
-                                              │
-                               TwiML: simulring all ONLINE users
-                                              │
-                                   First user to answer wins
-```
+### Security
+- Stateless JWT authentication; all API calls include `Authorization: Bearer <token>`.
+- Role-based access control via Spring `@PreAuthorize` (`ADMIN`, `SUPERVISOR`, `AGENT`).
+- Twilio webhook endpoints are public (Twilio's servers POST to them without tokens).
+- The dialer debug trigger endpoint (`/api/admin/diagnostics/trigger-dialer`) is public for browser-based testing; should be removed or secured before production.
 
 ---
 
 ## Project Structure
 
 ```
-src/main/java/com/nmckibben/testapp/
-├── TestAppApplication.java          # Entry point
-├── config/
-│   ├── SecurityConfig.java          # Spring Security, JWT filter wiring
-│   ├── TwilioConfig.java            # Initializes the Twilio SDK
-│   └── WebSocketConfig.java         # Registers /ws/signal endpoint
-├── controller/
-│   ├── AuthController.java          # POST /api/auth/login, /register
-│   ├── CallRecordController.java    # Call history CRUD
-│   ├── ContactController.java       # Contacts CRUD + search
-│   ├── TwilioController.java        # Token + TwiML webhook
-│   └── UserController.java          # User lookup, online list, status
-├── dto/                             # Request/response transfer objects
-├── entity/                          # JPA entities: User, Contact, CallRecord, CallStatus
-├── repository/                      # Spring Data JPA repositories
-├── security/
-│   ├── JwtAuthenticationFilter.java # Reads Bearer token from each request
-│   ├── JwtTokenProvider.java        # Generates and validates JWTs
-│   └── UserDetailsServiceImpl.java  # Loads users for Spring Security
-├── service/                         # Business logic: UserService, ContactService, CallRecordService
-└── websocket/
-    ├── SignalingHandler.java         # WebSocket message router for WebRTC signaling
-    └── SignalingMessage.java         # Signaling message envelope
-
-src/main/resources/
-├── application.properties           # Config (all secrets via env vars)
-├── application-local.properties     # Local overrides (gitignored)
-└── static/
-    ├── index.html                   # Login / registration page
-    ├── app.html                     # Main app UI
-    ├── css/style.css
-    └── js/
-        ├── auth.js                  # Login/register form logic
-        ├── app.js                   # Main UI controller
-        ├── signaling.js             # WebSocket wrapper (Signaling class)
-        └── webrtc.js                # WebRTC peer connection (WebRTCClient class)
+test-app/
+├── frontend/                        # React 18 + Vite SPA
+│   └── src/
+│       ├── App.jsx                  # Router setup
+│       ├── components/
+│       │   ├── Layout.jsx           # App shell (sidebar + navbar + outlet)
+│       │   ├── Navbar.jsx           # Top bar with embedded dialpad/contacts/settings dropdown
+│       │   ├── Sidebar.jsx          # Left nav (Dashboard, Agents, Admin)
+│       │   ├── IncomingCallModal.jsx
+│       │   └── admin/AdminLayout.jsx
+│       ├── context/
+│       │   └── CallContext.jsx      # Twilio Device, WebRTC, call state, contacts, history
+│       ├── lib/
+│       │   └── api.js               # Fetch wrapper (injects JWT header)
+│       └── pages/
+│           ├── DashboardPage.jsx
+│           ├── DialpadPage.jsx      # Full-page dialpad (standalone route, still accessible)
+│           ├── ContactsPage.jsx     # Full-page contacts (standalone route)
+│           ├── AgentsPage.jsx
+│           ├── SettingsPage.jsx
+│           └── admin/
+│               ├── AdminUsersPage.jsx
+│               ├── AdminWorkTypesPage.jsx    # DNIS + call flow + agent staffing
+│               ├── AdminCampaignsPage.jsx    # Campaigns + recycling config
+│               ├── AdminCallFlowsPage.jsx    # Visual IVR builder
+│               ├── AdminIntegrationsPage.jsx
+│               └── AdminDiagnosticsPage.jsx
+│
+└── src/main/java/com/nmckibben/testapp/
+    ├── TestAppApplication.java
+    ├── config/
+    │   ├── SecurityConfig.java          # JWT filter, public paths, CSRF off
+    │   ├── TwilioConfig.java            # Initializes Twilio SDK from env vars
+    │   └── WebSocketConfig.java         # Registers /ws/signal
+    ├── controller/
+    │   ├── AuthController.java          # /api/auth/login, /register
+    │   ├── UserController.java          # /api/users/me, /online, /status, /me/avatar, /me/profile
+    │   ├── ContactController.java       # /api/contacts CRUD + search
+    │   ├── CallRecordController.java    # /api/calls history
+    │   ├── WorkTypeController.java      # /api/admin/work-types CRUD + agent staffing
+    │   ├── CampaignController.java      # /api/admin/campaigns CRUD + contacts + stats
+    │   ├── CallFlowController.java      # /api/admin/call-flows CRUD
+    │   ├── TwilioController.java        # Token + TwiML webhooks (voice, worktype, campaign)
+    │   ├── DiagnosticsController.java   # /api/admin/diagnostics/events, /health
+    │   ├── DialerDebugController.java   # /api/admin/diagnostics/trigger-dialer (public)
+    │   ├── AdminController.java         # /api/admin/users CRUD
+    │   ├── IntegrationController.java   # /api/admin/integrations CRUD
+    │   └── SpaController.java           # Catch-all → index.html for React Router
+    ├── dto/
+    │   ├── UserDto.java                 # User response (includes avatarData)
+    │   ├── AuthResponse.java
+    │   ├── LoginRequest.java / RegisterRequest.java
+    │   ├── ContactDto.java
+    │   └── CallRecordDto.java
+    ├── entity/
+    │   ├── User.java                    # id, username, displayName, password, phoneNumber, status, role, avatarData
+    │   ├── WorkType.java                # id, name, defaultDialingMode, dnis, callFlow FK, agents (M2M)
+    │   ├── Campaign.java                # id, name, dialingMode, status, workType FK, callFlow FK,
+    │   │                                #   maxAttempts, retryDelayMinutes,
+    │   │                                #   maxRecycles, currentRecycle, recycleIntervalMinutes,
+    │   │                                #   recycleOnNoAnswer/Busy/Failed/Voicemail,
+    │   │                                #   resetAttemptsOnRecycle, lastRecycledAt
+    │   ├── CampaignContact.java         # id, campaign FK, name, phoneNumber, status, attempts,
+    │   │                                #   lastAttemptAt, lastCallStatus, disposition, notes
+    │   ├── CallFlow.java                # id, name, triggerNumber, flowJson (React Flow canvas), active
+    │   ├── CallRecord.java              # Call history
+    │   ├── Contact.java                 # Personal contacts
+    │   ├── SystemEvent.java             # Audit / event log
+    │   └── Integration.java
+    ├── repository/                      # Spring Data JPA repositories
+    │   ├── WorkTypeRepository.java      # + findByDnis(String)
+    │   └── CampaignContactRepository.java  # + findRecyclable(campaignId, callStatuses)
+    ├── service/
+    │   ├── UserService.java             # register, findBy*, updateStatus, updateAvatar, updateProfile
+    │   ├── WorkTypeService.java         # CRUD + setAgents
+    │   ├── CampaignDialerService.java   # @Scheduled dialer + recycling engine + handleCallStatus
+    │   ├── CampaignService.java
+    │   ├── CallFlowService.java
+    │   ├── EventLogService.java
+    │   └── ...
+    ├── security/
+    │   ├── JwtAuthenticationFilter.java
+    │   ├── JwtTokenProvider.java
+    │   └── UserDetailsServiceImpl.java
+    └── websocket/
+        ├── SignalingHandler.java        # WebRTC offer/answer/ICE relay
+        └── SignalingMessage.java
 ```
 
 ---
@@ -144,144 +201,220 @@ src/main/resources/
 
 - Java 17+
 - Maven 3.8+
-- A running Microsoft SQL Server instance
-- A [Twilio account](https://www.twilio.com/) with:
-  - A phone number
-  - A TwiML App configured with your server's `/api/twilio/voice` URL as the Voice Request URL
+- Node 18+ (for frontend dev build)
+- Microsoft SQL Server (local or Azure SQL)
+- Twilio account with:
+  - A purchased phone number
+  - A TwiML App with Voice Request URL pointing to `/api/twilio/voice`
   - An API Key (SID + Secret)
 
 ---
 
 ## Configuration
 
-All secrets are injected via environment variables. Create an `application-local.properties` file (already gitignored) or set the following in your environment:
+All secrets are injected via environment variables. Create `src/main/resources/application-local.properties` (gitignored) or set them in your deployment environment.
 
-| Environment Variable | Description |
+| Variable | Description |
 |---|---|
-| `DATASOURCE_URL` | JDBC URL, e.g. `jdbc:sqlserver://localhost:1433;databaseName=testapp` |
+| `DATASOURCE_URL` | JDBC URL e.g. `jdbc:sqlserver://host:1433;databaseName=db;encrypt=true` |
 | `DATASOURCE_USERNAME` | SQL Server username |
 | `DATASOURCE_PASSWORD` | SQL Server password |
-| `JWT_SECRET` | A long random string used to sign JWTs (min 32 chars) |
-| `TWILIO_ACCOUNT_SID` | Your Twilio Account SID (starts with `AC`) |
-| `TWILIO_AUTH_TOKEN` | Your Twilio Auth Token |
-| `TWILIO_API_KEY_SID` | Twilio API Key SID (starts with `SK`) |
-| `TWILIO_API_KEY_SECRET` | Twilio API Key Secret |
-| `TWILIO_TWIML_APP_SID` | TwiML App SID (starts with `AP`) |
-| `TWILIO_PHONE_NUMBER` | Your Twilio phone number in E.164 format, e.g. `+15550001234` |
-| `TWILIO_DEFAULT_CLIENT` | Default client identity for inbound routing (optional) |
+| `JWT_SECRET` | Random string ≥ 32 characters for signing JWTs |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID (`AC…`) |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_API_KEY_SID` | API Key SID (`SK…`) |
+| `TWILIO_API_KEY_SECRET` | API Key Secret |
+| `TWILIO_TWIML_APP_SID` | TwiML App SID (`AP…`) |
+| `TWILIO_PHONE_NUMBER` | Default Twilio number in E.164, e.g. `+15550001234` |
+| `APP_BASE_URL` | Public HTTPS base URL of the app, e.g. `https://yourapp.azurewebsites.net` |
 
-**Example `application-local.properties`:**
-```properties
-DATASOURCE_URL=jdbc:sqlserver://localhost:1433;databaseName=testapp;encrypt=false
-DATASOURCE_USERNAME=sa
-DATASOURCE_PASSWORD=YourPassword123
-JWT_SECRET=change-me-to-a-long-random-secret-string
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_API_KEY_SID=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_API_KEY_SECRET=your_api_key_secret
-TWILIO_TWIML_APP_SID=APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_PHONE_NUMBER=+15550001234
-TWILIO_DEFAULT_CLIENT=defaultuser
-```
+`APP_BASE_URL` is critical for outbound campaigns — it is used to construct the TwiML and status-callback URLs that Twilio's servers call back on.
 
 ---
 
 ## Running Locally
 
 ```bash
-# Clone the repo
-git clone <repo-url>
-cd test-app
-
-# Set environment variables (or create application-local.properties)
-
-# Build and run
+# 1. Start the backend
 ./mvnw spring-boot:run
+# Starts on http://localhost:8080
+# Hibernate auto-creates / migrates tables on first run
 
-# The app starts on http://localhost:8080
+# 2. Start the frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+# Vite proxy forwards /api/* to localhost:8080
+# Open http://localhost:5173
 ```
 
-Hibernate will auto-create the database tables on first run (`spring.jpa.hibernate.ddl-auto=update`).
+For local Twilio testing, use [ngrok](https://ngrok.com/) to expose port 8080 and set `APP_BASE_URL` and the TwiML App webhook URL to the ngrok HTTPS URL.
+
+---
+
+## Deployment
+
+The project is deployed to **Azure App Service** via **GitHub Actions** CI/CD. The workflow:
+
+1. Builds the React frontend (`npm run build` in `/frontend`).
+2. Copies the built assets into `src/main/resources/static/`.
+3. Compiles the Spring Boot JAR (`./mvnw package`).
+4. Deploys the JAR to Azure App Service.
+
+Spring Boot serves the React SPA via `SpaController` (catch-all → `index.html`) alongside all API routes.
+
+Environment variables are configured in **Azure App Service → Configuration → Application settings**.
 
 ---
 
 ## API Reference
 
-All endpoints except `/api/auth/**`, `/api/twilio/voice`, and static files require a `Authorization: Bearer <token>` header.
+All endpoints require `Authorization: Bearer <token>` except where noted as **public**.
 
-### Auth
+### Auth (public)
 
 | Method | Path | Body | Description |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | `{ username, displayName, password, phoneNumber }` | Create a new account. Returns JWT + user. |
-| `POST` | `/api/auth/login` | `{ username, password }` | Authenticate. Returns JWT + user. Sets status to ONLINE. |
+| `POST` | `/api/auth/register` | `{ username, displayName, password, phoneNumber }` | Create account. Returns JWT + UserDto. |
+| `POST` | `/api/auth/login` | `{ username, password }` | Authenticate. Returns JWT + UserDto. Sets status ONLINE. |
 
 ### Users
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/users/me` | Returns the authenticated user's profile. |
-| `GET` | `/api/users/online` | Lists all users with status `ONLINE`. |
-| `GET` | `/api/users/search?q=<query>` | Search users by username or display name. |
-| `GET` | `/api/users/phone/{number}` | Look up a user by phone number. |
-| `PUT` | `/api/users/status?status=<status>` | Update the authenticated user's status (e.g. `ONLINE`, `OFFLINE`). |
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `GET` | `/api/users/me` | — | Current user's profile (includes `avatarData`). |
+| `GET` | `/api/users/online` | — | All users with status `ONLINE`. |
+| `GET` | `/api/users/search?q=` | — | Search by username or display name. |
+| `GET` | `/api/users/phone/{number}` | — | Look up user by phone number. |
+| `PUT` | `/api/users/status?status=` | — | Update own status (`ONLINE` / `BUSY` / `OFFLINE`). |
+| `PUT` | `/api/users/me/avatar` | `{ avatarData }` | Save profile picture as base64 data URL. |
+| `PUT` | `/api/users/me/profile` | `{ displayName, phoneNumber }` | Update own display name and phone number. |
 
 ### Contacts
 
 | Method | Path | Body | Description |
 |---|---|---|---|
-| `GET` | `/api/contacts` | — | List all contacts for the authenticated user. |
-| `GET` | `/api/contacts/search?name=<name>` | — | Search contacts by name. |
-| `POST` | `/api/contacts` | `{ name, phoneNumber }` | Add a new contact. |
-| `DELETE` | `/api/contacts/{contactId}` | — | Remove a contact. |
+| `GET` | `/api/contacts` | — | List own contacts. |
+| `GET` | `/api/contacts/search?name=` | — | Search contacts by name. |
+| `POST` | `/api/contacts` | `{ name, phoneNumber }` | Add a contact. |
+| `DELETE` | `/api/contacts/{id}` | — | Remove a contact. |
 
-### Calls
-
-| Method | Path | Body | Description |
-|---|---|---|---|
-| `POST` | `/api/calls/{calleeId}` | — | Initiate an in-app call record to another user. |
-| `POST` | `/api/calls/pstn` | `{ calleeNumber }` | Initiate a PSTN call record. |
-| `PUT` | `/api/calls/{callId}/status?status=<status>` | — | Update a call's status. Valid values: `INITIATED`, `RINGING`, `ANSWERED`, `MISSED`, `REJECTED`, `ENDED`. |
-| `GET` | `/api/calls` | — | Get the authenticated user's call history (newest first). |
-
-### Twilio
+### Call Records
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/twilio/token` | Returns a Twilio Access Token for the browser Voice SDK. |
-| `POST` | `/api/twilio/voice` | TwiML webhook called by Twilio. Routes outbound/inbound calls. |
-| `POST` | `/api/twilio/voice/status` | Twilio status callback (acknowledged, no-op). |
+| `GET` | `/api/calls` | Own call history (newest first). |
+| `POST` | `/api/calls/{calleeId}` | Create an in-app call record. |
+| `POST` | `/api/calls/pstn` | Create a PSTN call record. |
+| `PUT` | `/api/calls/{callId}/status?status=` | Update call status. |
+
+### Twilio (public — called by Twilio servers)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/twilio/token` | Access token for Twilio Voice browser SDK. |
+| `POST` | `/api/twilio/voice` | Main TwiML webhook. Routes: client calls → direct, DNIS match → WorkType queue, outbound PSTN → pass-through, fallback → simulring. |
+| `POST` | `/api/twilio/voice/status` | Voice status callback (acknowledged). |
+| `POST` | `/api/twilio/worktype/{id}/voice` | TwiML for outbound campaign calls — rings agents staffed in the specified WorkType. |
+| `POST` | `/api/twilio/campaign/{id}/voice` | Fallback TwiML for campaigns with no WorkType. |
+| `POST` | `/api/twilio/campaign/{id}/status` | Campaign call status callback — updates `CampaignContact.status` and `lastCallStatus`. |
+
+### Work Types (ADMIN / SUPERVISOR)
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `GET` | `/api/admin/work-types` | — | List all work types. |
+| `POST` | `/api/admin/work-types` | WorkType JSON | Create a work type. |
+| `PUT` | `/api/admin/work-types/{id}` | WorkType JSON | Update (including `dnis` and `callFlow`). |
+| `DELETE` | `/api/admin/work-types/{id}` | — | Delete. |
+| `PUT` | `/api/admin/work-types/{id}/agents` | `{ userIds: [1,2,3] }` | Replace agent staffing list. |
+
+### Campaigns (ADMIN / SUPERVISOR)
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `GET` | `/api/admin/campaigns` | — | List all campaigns. |
+| `POST` | `/api/admin/campaigns` | Campaign JSON | Create campaign (includes recycling fields). |
+| `PUT` | `/api/admin/campaigns/{id}` | Campaign JSON | Update campaign (mode, recycling config, etc.). |
+| `PUT` | `/api/admin/campaigns/{id}/status` | `{ status }` | Set campaign status (ACTIVE / PAUSED / etc.). |
+| `GET` | `/api/admin/campaigns/{id}/contacts` | — | List all contacts for a campaign. |
+| `GET` | `/api/admin/campaigns/{id}/stats` | — | Contact count by status (total, pending, completed, failed, dnc). |
+| `POST` | `/api/admin/campaigns/{id}/contacts` | `{ name, phoneNumber }` | Add a contact. |
+| `DELETE` | `/api/admin/campaigns/contacts/{id}` | — | Remove a contact. |
+
+### Call Flows (ADMIN)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/admin/call-flows` | List all call flows. |
+| `POST` | `/api/admin/call-flows` | Create. |
+| `PUT` | `/api/admin/call-flows/{id}` | Update (including `flowJson` canvas). |
+| `DELETE` | `/api/admin/call-flows/{id}` | Delete. |
+
+### Diagnostics (ADMIN / SUPERVISOR)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/admin/diagnostics/events` | Paginated system event log. |
+| `GET` | `/api/admin/diagnostics/health` | Health snapshot (errors, warnings, active campaigns, online agents, pending contacts). |
+| `GET` | `/api/admin/diagnostics/trigger-dialer` | **Public.** Manually fire the dialer scheduler. Accepts `?setMode=POWER` to override all active campaign modes before firing. |
 
 ---
 
-## WebSocket Signaling Protocol
+## Data Model
 
-Connect to `ws[s]://<host>/ws/signal?token=<jwt>`.
+### Campaign recycling fields
 
-The server validates the JWT on connection. If invalid, the socket is closed immediately.
+| Field | Default | Description |
+|---|---|---|
+| `maxRecycles` | 0 | Number of recycle passes after the initial pass. 0 = disabled. |
+| `currentRecycle` | 0 | Which pass we're on (0 = first pass). |
+| `recycleIntervalMinutes` | 60 | Cooldown between passes. |
+| `recycleOnNoAnswer` | true | Recycle contacts that were not answered. |
+| `recycleOnBusy` | true | Recycle contacts that returned busy. |
+| `recycleOnVoicemail` | false | Recycle contacts that went to voicemail. |
+| `recycleOnFailed` | false | Recycle contacts that had a hard Twilio failure. |
+| `resetAttemptsOnRecycle` | true | Reset each contact's attempt counter at the start of each pass. |
+| `lastRecycledAt` | null | Timestamp of the last recycle; used for cooldown enforcement. |
 
-All messages are JSON with this envelope:
+### WorkType numbering plan fields
 
-```json
-{
-  "type": "<message-type>",
-  "to": 123,
-  "from": 456,
-  "payload": { ... }
-}
+| Field | Description |
+|---|---|
+| `dnis` | E.164 Twilio number assigned to this queue (e.g. `+18005551234`). Used as outbound caller ID and for inbound DNIS routing. |
+| `callFlow` | FK to CallFlow — the IVR to execute when an inbound call arrives on `dnis`. |
+
+### CampaignContact status lifecycle
+
+```
+PENDING → IN_PROGRESS → COMPLETED
+                      → FAILED (maxAttempts reached)
+                      → PENDING (retried after busy/no-answer, or recycled)
+                      → DNC (do-not-call, set manually)
 ```
 
-`from` is set by the server based on the authenticated user — clients do not need to include it.
+`lastCallStatus` stores the raw Twilio outcome (`completed`, `busy`, `no-answer`, `canceled`, `failed`) used by the recycling engine to decide which contacts qualify for the next pass.
 
-### Message Types
+---
 
-| Type | Direction | Payload | Description |
-|---|---|---|---|
-| `call-request` | client → server → client | `null` | Notify the callee of an incoming call. |
-| `call-accept` | client → server → client | `null` | Callee accepts; caller proceeds to send an offer. |
-| `call-reject` | client → server → client | `null` | Callee rejects the call. |
-| `offer` | client → server → client | SDP offer object | WebRTC offer from caller to callee. |
-| `answer` | client → server → client | SDP answer object | WebRTC answer from callee to caller. |
-| `ice-candidate` | client → server → client | ICE candidate object | Trickle ICE candidate exchange. |
-| `hang-up` | client → server → client | `null` | Either party ends the call. |
+## WebSocket Signaling
+
+Connect to `wss://<host>/ws/signal?token=<jwt>`. The server validates the JWT on connection.
+
+All messages use this JSON envelope:
+
+```json
+{ "type": "<type>", "to": 123, "from": 456, "payload": {} }
+```
+
+`from` is set by the server from the authenticated user identity.
+
+| Type | Direction | Description |
+|---|---|---|
+| `call-request` | client ↔ server ↔ client | Notify callee of an incoming call. |
+| `call-accept` | client ↔ server ↔ client | Callee accepts; caller sends WebRTC offer. |
+| `call-reject` | client ↔ server ↔ client | Callee rejects. |
+| `offer` | client ↔ server ↔ client | WebRTC SDP offer. |
+| `answer` | client ↔ server ↔ client | WebRTC SDP answer. |
+| `ice-candidate` | client ↔ server ↔ client | Trickle ICE candidate. |
+| `hang-up` | client ↔ server ↔ client | Either party ends the call. |
