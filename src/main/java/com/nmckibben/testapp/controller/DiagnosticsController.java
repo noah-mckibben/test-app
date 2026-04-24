@@ -69,7 +69,7 @@ public class DiagnosticsController {
      * Manually trigger one dialer cycle and return a diagnostic report.
      * Useful for testing without waiting for the 30-second scheduler tick.
      */
-    @PostMapping("/trigger-dialer")
+    @GetMapping("/trigger-dialer")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> triggerDialer() {
         Map<String, Object> report = new LinkedHashMap<>();
