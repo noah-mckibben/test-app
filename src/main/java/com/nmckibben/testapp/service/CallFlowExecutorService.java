@@ -6,7 +6,11 @@ import com.nmckibben.testapp.entity.CallFlow;
 import com.nmckibben.testapp.entity.WorkType;
 import com.nmckibben.testapp.repository.WorkTypeRepository;
 import com.twilio.twiml.VoiceResponse;
-import com.twilio.twiml.voice.*;
+import com.twilio.twiml.voice.Client;
+import com.twilio.twiml.voice.Dial;
+import com.twilio.twiml.voice.Gather;
+import com.twilio.twiml.voice.Hangup;
+import com.twilio.twiml.voice.Say;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -166,7 +170,7 @@ public class CallFlowExecutorService {
                 case "voicemail" -> {
                     String prompt = data.path("prompt").asText("Please leave a message after the tone.").trim();
                     response.say(new Say.Builder(prompt).build());
-                    response.record(new Record.Builder().transcribe(true).build());
+                    response.record(new com.twilio.twiml.voice.Record.Builder().transcribe(true).build());
                     return;
                 }
 
