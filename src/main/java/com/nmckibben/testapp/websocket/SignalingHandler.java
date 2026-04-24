@@ -57,6 +57,8 @@ public class SignalingHandler extends TextWebSocketHandler {
         userRepository.findByUsername(username).ifPresent(user -> {
             sessions.put(user.getId(), session);
             session.getAttributes().put("userId", user.getId());
+            user.setStatus("ONLINE");
+            userRepository.save(user);
         });
     }
 
@@ -78,12 +80,19 @@ public class SignalingHandler extends TextWebSocketHandler {
         }
     }
 
-    /** Removes the user's session from the active map when the connection closes. */
+    /**
+     * Removes the user's session from the active map and marks them {@code OFFLINE}
+     * when the connection closes (covers tab close, network drop, and server-side timeouts).
+     */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Long userId = (Long) session.getAttributes().get("userId");
         if (userId != null) {
             sessions.remove(userId);
+            userRepository.findById(userId).ifPresent(user -> {
+                user.setStatus("OFFLINE");
+                userRepository.save(user);
+            });
         }
     }
 
