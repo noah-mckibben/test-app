@@ -41,7 +41,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // Twilio webhooks must be public — Twilio servers POST to these
                 .requestMatchers("/api/twilio/voice", "/api/twilio/voice/status",
-                                 "/api/twilio/campaign/**").permitAll()
+                                 "/api/twilio/campaign/**",
+                                 "/api/twilio/worktype/**",
+                                 "/api/twilio/flow/**").permitAll()
                 // Dialer debug trigger — public so it can be tested directly in a browser
                 .requestMatchers("/api/admin/diagnostics/trigger-dialer").permitAll()
                 .anyRequest().authenticated()
