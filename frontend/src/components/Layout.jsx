@@ -11,6 +11,7 @@ export default function Layout() {
   const { incomingCall, acceptCall, rejectCall } = useCall()
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const [status, setStatus] = useState(user.status || 'ONLINE')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   async function handleStatusChange(s) {
     setStatus(s)
@@ -27,11 +28,21 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar onLogout={handleLogout} />
+      <Sidebar
+        onLogout={handleLogout}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-      <div className="flex-1 flex flex-col ml-60 min-w-0 overflow-hidden">
-        <Navbar user={user} status={status} onStatusChange={handleStatusChange} />
-        <main className="flex-1 overflow-y-auto p-6">
+      {/* Main content — offset by sidebar width on desktop only */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:ml-60">
+        <Navbar
+          user={user}
+          status={status}
+          onStatusChange={handleStatusChange}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

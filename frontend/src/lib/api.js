@@ -1,11 +1,12 @@
-const getToken = () => localStorage.getItem('token')
+const BASE = ''
 
-export async function api(path, options = {}) {
-  return fetch(path, {
+export function api(path, options = {}) {
+  const token = localStorage.getItem('token')
+  return fetch(BASE + path, {
     ...options,
     headers: {
-      Authorization: `Bearer ${getToken()}`,
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   })

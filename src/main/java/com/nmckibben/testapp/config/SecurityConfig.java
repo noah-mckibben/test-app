@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -17,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtTokenProvider tokenProvider;
@@ -33,15 +35,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // SPA shell and Vite-built static assets
                 .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
-                // SPA client-side routes — served by SpaController as index.html
-                .requestMatchers("/login", "/dashboard", "/dialpad", "/contacts", "/agents", "/settings").permitAll()
-                // Auth endpoints (login, register)
+                .requestMatchers("/login", "/dashboard", "/dialpad", "/contacts", "/agents", "/settings",
+                                 "/admin", "/admin/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                // Twilio webhook — must be public so Twilio servers can POST to it
                 .requestMatchers("/api/twilio/voice", "/api/twilio/voice/status").permitAll()
-                // Everything else requires a valid JWT
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
