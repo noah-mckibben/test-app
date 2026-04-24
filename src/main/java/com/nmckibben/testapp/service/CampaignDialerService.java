@@ -11,6 +11,7 @@ import com.twilio.type.PhoneNumber;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -56,6 +57,7 @@ public class CampaignDialerService {
     }
 
     @Scheduled(fixedDelay = 30_000)
+    @Transactional
     public void run() {
         List<Campaign> active = campaignRepo.findByStatus("ACTIVE");
         for (Campaign campaign : active) {
@@ -201,6 +203,7 @@ public class CampaignDialerService {
     }
 
     /** Called by TwilioController when a campaign call status changes. */
+    @Transactional
     public void handleCallStatus(Long campaignId, Long contactId, String callStatus, String callSid) {
         contactRepo.findById(contactId).ifPresent(contact -> {
             contact.setLastCallStatus(callStatus);
