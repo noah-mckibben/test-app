@@ -36,10 +36,12 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
-                .requestMatchers("/login", "/dashboard", "/dialpad", "/contacts", "/agents", "/settings",
-                                 "/admin", "/admin/**").permitAll()
+                .requestMatchers("/login", "/dashboard", "/dialpad", "/contacts",
+                                 "/agents", "/settings", "/admin", "/admin/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/twilio/voice", "/api/twilio/voice/status").permitAll()
+                // Twilio webhooks must be public — Twilio servers POST to these
+                .requestMatchers("/api/twilio/voice", "/api/twilio/voice/status",
+                                 "/api/twilio/campaign/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -52,9 +54,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {

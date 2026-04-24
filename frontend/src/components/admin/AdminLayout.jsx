@@ -1,15 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Users, Puzzle, GitBranch, Briefcase, Megaphone, ChevronRight } from 'lucide-react'
-
-const user = JSON.parse(localStorage.getItem('user') || '{}')
-const isAdmin = user.role === 'ADMIN'
+import { Users, Puzzle, GitBranch, Briefcase, Megaphone, ChevronRight, Activity } from 'lucide-react'
 
 const links = [
-  { to: '/admin/users',       icon: Users,      label: 'Users & Roles',  roles: ['ADMIN','SUPERVISOR'] },
-  { to: '/admin/work-types',  icon: Briefcase,  label: 'Work Types',     roles: ['ADMIN','SUPERVISOR'] },
-  { to: '/admin/campaigns',   icon: Megaphone,  label: 'Campaigns',      roles: ['ADMIN','SUPERVISOR'] },
-  { to: '/admin/call-flows',  icon: GitBranch,  label: 'Call Flows',     roles: ['ADMIN'] },
-  { to: '/admin/integrations',icon: Puzzle,     label: 'Integrations',   roles: ['ADMIN'] },
+  { to: '/admin/users',        icon: Users,      label: 'Users & Roles',  roles: ['ADMIN','SUPERVISOR'] },
+  { to: '/admin/work-types',   icon: Briefcase,  label: 'Work Types',     roles: ['ADMIN','SUPERVISOR'] },
+  { to: '/admin/campaigns',    icon: Megaphone,  label: 'Campaigns',      roles: ['ADMIN','SUPERVISOR'] },
+  { to: '/admin/diagnostics',  icon: Activity,   label: 'Diagnostics',    roles: ['ADMIN','SUPERVISOR'] },
+  { to: '/admin/call-flows',   icon: GitBranch,  label: 'Call Flows',     roles: ['ADMIN'] },
+  { to: '/admin/integrations', icon: Puzzle,     label: 'Integrations',   roles: ['ADMIN'] },
 ]
 
 export default function AdminLayout() {
@@ -18,7 +16,6 @@ export default function AdminLayout() {
 
   return (
     <div className="flex gap-5 min-h-full">
-      {/* Sub-nav */}
       <aside className="w-52 flex-shrink-0">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -43,11 +40,7 @@ export default function AdminLayout() {
           </nav>
         </div>
       </aside>
-
-      {/* Page content */}
-      <div className="flex-1 min-w-0">
-        <Outlet />
-      </div>
+      <div className="flex-1 min-w-0"><Outlet /></div>
     </div>
   )
 }

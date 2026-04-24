@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Phone, Users, BookUser, Settings, LogOut, PhoneCall, X, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Phone, Users, BookUser, Settings, PhoneCall, X, ShieldCheck } from 'lucide-react'
 
 const mainItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -9,7 +9,7 @@ const mainItems = [
   { to: '/settings',  icon: Settings,         label: 'Settings'  },
 ]
 
-export default function Sidebar({ onLogout, isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose }) {
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const isPrivileged = user.role === 'ADMIN' || user.role === 'SUPERVISOR'
 
@@ -64,23 +64,6 @@ export default function Sidebar({ onLogout, isOpen, onClose }) {
             </>
           )}
         </nav>
-
-        <div className="px-3 py-4 border-t border-gray-100">
-          <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {user.displayName?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-gray-800 truncate">{user.displayName}</p>
-              <p className="text-xs text-gray-400 truncate">{user.role || 'AGENT'}</p>
-            </div>
-          </div>
-          <button onClick={() => { onClose(); onLogout() }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors">
-            <LogOut size={17} className="text-gray-400" />
-            Log Out
-          </button>
-        </div>
       </aside>
     </>
   )

@@ -29,7 +29,6 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
-        onLogout={handleLogout}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -41,6 +40,7 @@ export default function Layout() {
           status={status}
           onStatusChange={handleStatusChange}
           onMenuClick={() => setSidebarOpen(true)}
+          onLogout={handleLogout}
         />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />
