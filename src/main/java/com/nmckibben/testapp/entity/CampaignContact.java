@@ -27,6 +27,10 @@ public class CampaignContact {
 
     private int attempts = 0;
     private LocalDateTime lastAttemptAt;
+
+    /** Last Twilio call status: completed | busy | no-answer | canceled | failed | voicemail */
+    private String lastCallStatus;
+
     private String disposition;
     private String notes;
 
@@ -53,6 +57,8 @@ public class CampaignContact {
     public void setAttempts(int a) { this.attempts = a; }
     public LocalDateTime getLastAttemptAt() { return lastAttemptAt; }
     public void setLastAttemptAt(LocalDateTime t) { this.lastAttemptAt = t; }
+    public String getLastCallStatus() { return lastCallStatus; }
+    public void setLastCallStatus(String s) { this.lastCallStatus = s; }
     public String getDisposition() { return disposition; }
     public void setDisposition(String d) { this.disposition = d; }
     public String getNotes() { return notes; }

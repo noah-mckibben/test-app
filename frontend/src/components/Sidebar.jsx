@@ -1,12 +1,9 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Phone, Users, BookUser, Settings, PhoneCall, X, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, PhoneCall, X, ShieldCheck } from 'lucide-react'
 
 const mainItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/dialpad',   icon: Phone,           label: 'Dialpad'   },
-  { to: '/contacts',  icon: BookUser,         label: 'Contacts'  },
-  { to: '/agents',    icon: Users,            label: 'Agents'    },
-  { to: '/settings',  icon: Settings,         label: 'Settings'  },
+  { to: '/agents',    icon: Users,           label: 'Agents'    },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {

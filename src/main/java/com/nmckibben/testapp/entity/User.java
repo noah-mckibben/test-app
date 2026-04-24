@@ -30,6 +30,10 @@ public class User {
     @Column(nullable = false)
     private String role = "AGENT";
 
+    /** Base64 data URL of the user's profile picture, e.g. data:image/jpeg;base64,... */
+    @Column(columnDefinition = "NVARCHAR(MAX)")
+    private String avatarData;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -50,6 +54,8 @@ public class User {
     public void setStatus(String status) { this.status = status; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getAvatarData() { return avatarData; }
+    public void setAvatarData(String avatarData) { this.avatarData = avatarData; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

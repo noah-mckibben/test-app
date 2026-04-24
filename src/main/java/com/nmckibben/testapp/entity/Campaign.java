@@ -40,6 +40,17 @@ public class Campaign {
     /** Minutes to wait before retrying a contact */
     private int retryDelayMinutes = 60;
 
+    // Recycling
+    private int maxRecycles = 0;
+    private int currentRecycle = 0;
+    private int recycleIntervalMinutes = 60;
+    private boolean recycleOnNoAnswer = true;
+    private boolean recycleOnBusy = true;
+    private boolean recycleOnFailed = false;
+    private boolean recycleOnVoicemail = false;
+    private boolean resetAttemptsOnRecycle = true;
+    private LocalDateTime lastRecycledAt;
+
     private LocalDateTime scheduledStart;
     private LocalDateTime scheduledEnd;
 
@@ -71,4 +82,22 @@ public class Campaign {
     public LocalDateTime getScheduledEnd() { return scheduledEnd; }
     public void setScheduledEnd(LocalDateTime t) { this.scheduledEnd = t; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public int getMaxRecycles() { return maxRecycles; }
+    public void setMaxRecycles(int v) { this.maxRecycles = v; }
+    public int getCurrentRecycle() { return currentRecycle; }
+    public void setCurrentRecycle(int v) { this.currentRecycle = v; }
+    public int getRecycleIntervalMinutes() { return recycleIntervalMinutes; }
+    public void setRecycleIntervalMinutes(int v) { this.recycleIntervalMinutes = v; }
+    public boolean isRecycleOnNoAnswer() { return recycleOnNoAnswer; }
+    public void setRecycleOnNoAnswer(boolean v) { this.recycleOnNoAnswer = v; }
+    public boolean isRecycleOnBusy() { return recycleOnBusy; }
+    public void setRecycleOnBusy(boolean v) { this.recycleOnBusy = v; }
+    public boolean isRecycleOnFailed() { return recycleOnFailed; }
+    public void setRecycleOnFailed(boolean v) { this.recycleOnFailed = v; }
+    public boolean isRecycleOnVoicemail() { return recycleOnVoicemail; }
+    public void setRecycleOnVoicemail(boolean v) { this.recycleOnVoicemail = v; }
+    public boolean isResetAttemptsOnRecycle() { return resetAttemptsOnRecycle; }
+    public void setResetAttemptsOnRecycle(boolean v) { this.resetAttemptsOnRecycle = v; }
+    public LocalDateTime getLastRecycledAt() { return lastRecycledAt; }
+    public void setLastRecycledAt(LocalDateTime t) { this.lastRecycledAt = t; }
 }

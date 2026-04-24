@@ -10,6 +10,7 @@ public class UserDto {
     private String phoneNumber;
     private String status;
     private String role;
+    private String avatarData;
     private LocalDateTime createdAt;
 
     public static UserDto from(User user) {
@@ -20,6 +21,7 @@ public class UserDto {
         dto.phoneNumber = user.getPhoneNumber();
         dto.status = user.getStatus();
         dto.role = user.getRole();
+        dto.avatarData = user.getAvatarData();
         dto.createdAt = user.getCreatedAt();
         return dto;
     }
@@ -30,5 +32,6 @@ public class UserDto {
     public String getPhoneNumber() { return phoneNumber; }
     public String getStatus() { return status; }
     public String getRole() { return role; }
+    public String getAvatarData() { return avatarData; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

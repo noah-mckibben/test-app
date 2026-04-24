@@ -14,21 +14,25 @@ import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Scheduled outbound dialing engine.
  *
- * <p>Every 30 seconds this service checks for ACTIVE campaigns and dials
+ * Every 30 seconds this service checks for ACTIVE campaigns and dials
  * the next eligible PENDING contact using the Twilio REST API.
  *
- * <p>Dialing modes:
- * <ul>
- *   <li><b>PREVIEW</b>  — no auto-dialing; agents dial manually from the campaign UI.</li>
- *   <li><b>POWER</b>    — one call placed per poll cycle per campaign.</li>
- *   <li><b>PREDICTIVE</b> — up to 3 calls placed per poll cycle per campaign.</li>
- *   <li><b>BLASTER</b>  — dials all PENDING contacts in the campaign at once.</li>
- * </ul>
+ * Dialing modes:
+ *   PREVIEW    - no auto-dialing; agents dial manually from the campaign UI.
+ *   POWER      - one call placed per poll cycle per campaign.
+ *   PREDICTIVE - up to 3 calls placed per poll cycle per campaign.
+ *   BLASTER    - dials all PENDING contacts in the campaign at once.
+ *
+ * Caller ID:
+ *   If the campaign has a WorkType with a DNIS configured, that number is used
+ *   as the outbound caller ID and the call is routed to that queue's agents.
+ *   Otherwise the default Twilio number is used.
  */
 @Service
 public class CampaignDialerService {
@@ -67,15 +71,26 @@ public class CampaignDialerService {
 
     private void dial(Campaign campaign) {
         String mode = campaign.getDialingMode();
-        if ("PREVIEW".equals(mode)) return;  // agents dial manually
+        if ("PREVIEW".equals(mode)) return;
 
         List<CampaignContact> pending = contactRepo.findByCampaignIdAndStatus(campaign.getId(), "PENDING");
+        long inProgress = contactRepo.countByCampaignIdAndStatus(campaign.getId(), "IN_PROGRESS");
+
         if (pending.isEmpty()) {
-            // Campaign exhausted — auto-complete it
-            campaign.setStatus("COMPLETED");
-            campaignRepo.save(campaign);
-            eventLog.info("CAMPAIGN_STATUS", "CampaignDialer",
-                    "Campaign completed (no pending contacts): " + campaign.getName());
+            if (inProgress > 0) {
+                return; // wait for in-flight calls
+            }
+            if (tryRecycle(campaign)) return;
+
+            long total     = contactRepo.countByCampaignId(campaign.getId());
+            long completed = contactRepo.countByCampaignIdAndStatus(campaign.getId(), "COMPLETED");
+            long failed    = contactRepo.countByCampaignIdAndStatus(campaign.getId(), "FAILED");
+            if (total > 0 && (completed + failed) == total) {
+                campaign.setStatus("COMPLETED");
+                campaignRepo.save(campaign);
+                eventLog.info("CAMPAIGN_STATUS", "CampaignDialer",
+                        "Campaign completed - " + completed + " completed, " + failed + " failed: " + campaign.getName());
+            }
             return;
         }
 
@@ -92,19 +107,74 @@ public class CampaignDialerService {
         }
     }
 
+    /**
+     * Attempt to recycle the campaign: if recycling is configured and we have not
+     * hit the maximum number of passes yet, reset eligible contacts back to PENDING
+     * and increment the recycle counter.
+     *
+     * @return true if a recycle was performed (caller should skip auto-complete logic)
+     */
+    private boolean tryRecycle(Campaign campaign) {
+        if (campaign.getMaxRecycles() <= 0) return false;
+        if (campaign.getCurrentRecycle() >= campaign.getMaxRecycles()) return false;
+
+        LocalDateTime lastRecycled = campaign.getLastRecycledAt();
+        if (lastRecycled != null) {
+            LocalDateTime earliest = lastRecycled.plusMinutes(campaign.getRecycleIntervalMinutes());
+            if (LocalDateTime.now().isBefore(earliest)) return false;
+        }
+
+        List<String> recyclableStatuses = new ArrayList<>();
+        if (campaign.isRecycleOnNoAnswer())  recyclableStatuses.add("no-answer");
+        if (campaign.isRecycleOnBusy())      recyclableStatuses.add("busy");
+        if (campaign.isRecycleOnFailed())    recyclableStatuses.add("failed");
+        if (campaign.isRecycleOnVoicemail()) recyclableStatuses.add("voicemail");
+
+        if (recyclableStatuses.isEmpty()) return false;
+
+        List<CampaignContact> recyclable = contactRepo.findRecyclable(campaign.getId(), recyclableStatuses);
+        if (recyclable.isEmpty()) return false;
+
+        int recyclePass = campaign.getCurrentRecycle() + 1;
+        for (CampaignContact c : recyclable) {
+            c.setStatus("PENDING");
+            c.setLastCallStatus(null);
+            if (campaign.isResetAttemptsOnRecycle()) c.setAttempts(0);
+            contactRepo.save(c);
+        }
+
+        campaign.setCurrentRecycle(recyclePass);
+        campaign.setLastRecycledAt(LocalDateTime.now());
+        campaignRepo.save(campaign);
+
+        eventLog.info("CAMPAIGN_RECYCLE", "CampaignDialer",
+                "Recycle pass " + recyclePass + " of " + campaign.getMaxRecycles()
+                + " started - " + recyclable.size() + " contacts reset: " + campaign.getName());
+        return true;
+    }
+
     private void placeTwilioCall(Campaign campaign, CampaignContact contact) {
-        // Mark in-progress immediately to avoid duplicate dials
         contact.setStatus("IN_PROGRESS");
         contact.setAttempts(contact.getAttempts() + 1);
         contact.setLastAttemptAt(LocalDateTime.now());
         contactRepo.save(contact);
 
         try {
-            String twimlUrl = baseUrl + "/api/twilio/campaign/" + campaign.getId() + "/voice";
+            // Use WorkType DNIS as caller ID and route to that queue if available
+            com.nmckibben.testapp.entity.WorkType workType = campaign.getWorkType();
+            String callerIdNumber = (workType != null
+                    && workType.getDnis() != null
+                    && !workType.getDnis().isBlank())
+                    ? workType.getDnis()
+                    : fromNumber;
+
+            String twimlUrl = (workType != null)
+                    ? baseUrl + "/api/twilio/worktype/" + workType.getId() + "/voice"
+                    : baseUrl + "/api/twilio/campaign/" + campaign.getId() + "/voice";
 
             Call call = Call.creator(
                     new PhoneNumber(contact.getPhoneNumber()),
-                    new PhoneNumber(fromNumber),
+                    new PhoneNumber(callerIdNumber),
                     new URI(twimlUrl)
             )
             .setStatusCallback(baseUrl + "/api/twilio/campaign/" + campaign.getId()
@@ -113,13 +183,13 @@ public class CampaignDialerService {
             .create();
 
             SystemEvent e = SystemEvent.of("CAMPAIGN_DIAL", "INFO", "CampaignDialer",
-                    "Dialing " + contact.getName() + " (" + contact.getPhoneNumber() + ") — campaign: " + campaign.getName());
+                    "Dialing " + contact.getName() + " (" + contact.getPhoneNumber() + ") - campaign: " + campaign.getName());
             e.setDetails("{\"callSid\":\"" + call.getSid() + "\",\"contactId\":" + contact.getId()
-                    + ",\"campaignId\":" + campaign.getId() + ",\"mode\":\"" + campaign.getDialingMode() + "\"}");
+                    + ",\"campaignId\":" + campaign.getId() + ",\"mode\":\"" + campaign.getDialingMode()
+                    + "\",\"callerId\":\"" + callerIdNumber + "\"}");
             eventLog.save(e);
 
         } catch (Exception ex) {
-            // Revert to PENDING if Twilio rejected the call
             contact.setStatus(contact.getAttempts() >= campaign.getMaxAttempts() ? "FAILED" : "PENDING");
             contactRepo.save(contact);
 
@@ -133,6 +203,8 @@ public class CampaignDialerService {
     /** Called by TwilioController when a campaign call status changes. */
     public void handleCallStatus(Long campaignId, Long contactId, String callStatus, String callSid) {
         contactRepo.findById(contactId).ifPresent(contact -> {
+            contact.setLastCallStatus(callStatus);
+
             String newStatus = switch (callStatus) {
                 case "completed"  -> "COMPLETED";
                 case "busy", "no-answer", "canceled" -> {
@@ -146,7 +218,7 @@ public class CampaignDialerService {
             contactRepo.save(contact);
 
             eventLog.info("CALL_COMPLETED", "TwilioWebhook",
-                    "Campaign call " + callStatus + " — " + contact.getName()
+                    "Campaign call " + callStatus + " - " + contact.getName()
                     + " [" + contact.getPhoneNumber() + "] campaign #" + campaignId);
         });
     }

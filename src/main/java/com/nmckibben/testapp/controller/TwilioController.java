@@ -1,5 +1,7 @@
 package com.nmckibben.testapp.controller;
 
+import com.nmckibben.testapp.entity.WorkType;
+import com.nmckibben.testapp.repository.WorkTypeRepository;
 import com.nmckibben.testapp.service.CampaignDialerService;
 import com.nmckibben.testapp.service.UserService;
 import com.twilio.jwt.accesstoken.AccessToken;
@@ -18,6 +20,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/twilio")
@@ -40,10 +45,14 @@ public class TwilioController {
 
     private final UserService userService;
     private final CampaignDialerService campaignDialer;
+    private final WorkTypeRepository workTypeRepo;
 
-    public TwilioController(UserService userService, CampaignDialerService campaignDialer) {
-        this.userService     = userService;
-        this.campaignDialer  = campaignDialer;
+    public TwilioController(UserService userService,
+                             CampaignDialerService campaignDialer,
+                             WorkTypeRepository workTypeRepo) {
+        this.userService    = userService;
+        this.campaignDialer = campaignDialer;
+        this.workTypeRepo   = workTypeRepo;
     }
 
     // ── Access token ──────────────────────────────────────────────────────────
@@ -79,6 +88,16 @@ public class TwilioController {
 
     // ── Inbound / browser-SDK TwiML webhook ───────────────────────────────────
 
+    /**
+     * Primary TwiML webhook used by the TwiML App (browser SDK calls) and
+     * inbound PSTN calls.
+     *
+     * Routing priority:
+     *  1. client:xyz  → app-to-app call, connect directly to that client
+     *  2. To matches a WorkType DNIS → ring agents staffed in that queue
+     *  3. Outbound PSTN (To is a real number, not our own) → dial through
+     *  4. Fallback → simulring all ONLINE agents
+     */
     @PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(
             @RequestParam(required = false) String To,
@@ -87,33 +106,33 @@ public class TwilioController {
         VoiceResponse.Builder responseBuilder = new VoiceResponse.Builder();
 
         if (To != null && To.startsWith("client:")) {
-            // App-to-app call
+            // 1. App-to-app
             String clientId = To.substring("client:".length());
-            Dial dial = new Dial.Builder()
+            responseBuilder.dial(new Dial.Builder()
                     .client(new Client.Builder(clientId).build())
-                    .build();
-            responseBuilder.dial(dial);
+                    .build());
 
-        } else if (To != null && !To.equals(twilioPhoneNumber) && !To.isBlank()) {
-            // Outbound PSTN
-            Dial dial = new Dial.Builder()
-                    .number(new Number.Builder(To).build())
-                    .build();
-            responseBuilder.dial(dial);
-
-        } else {
-            // Inbound PSTN — simulring all ONLINE agents
-            List<String> onlineUsernames = userService.getOnlineUsernames();
-            if (onlineUsernames.isEmpty()) {
+        } else if (To != null && !To.isBlank()) {
+            // 2. Check if To matches a WorkType DNIS
+            Optional<WorkType> workTypeOpt = workTypeRepo.findByDnis(To);
+            if (workTypeOpt.isPresent()) {
                 responseBuilder.say(new Say.Builder(
-                        "Sorry, no agents are available right now. Please try again later.").build());
+                        "Thank you for calling. Please hold while we connect you.").build());
+                dialWorkTypeAgents(responseBuilder, workTypeOpt.get());
+
+            } else if (!To.equals(twilioPhoneNumber)) {
+                // 3. Outbound PSTN
+                responseBuilder.dial(new Dial.Builder()
+                        .number(new Number.Builder(To).build())
+                        .build());
+
             } else {
-                Dial.Builder dialBuilder = new Dial.Builder();
-                for (String username : onlineUsernames) {
-                    dialBuilder.client(new Client.Builder(username).build());
-                }
-                responseBuilder.dial(dialBuilder.build());
+                // 4. Called our main number — simulring all ONLINE agents
+                dialAllOnlineAgents(responseBuilder);
             }
+        } else {
+            // 4. Fallback
+            dialAllOnlineAgents(responseBuilder);
         }
 
         return responseBuilder.build().toXml();
@@ -126,31 +145,38 @@ public class TwilioController {
         return ResponseEntity.ok().build();
     }
 
+    // ── WorkType-scoped TwiML (used by outbound campaign calls) ──────────────
+
+    /**
+     * TwiML for outbound campaign calls that belong to a specific WorkType.
+     * When Twilio connects the called party, it hits this endpoint and we
+     * ring only the agents staffed in that queue.
+     * Public — called by Twilio's servers.
+     */
+    @PostMapping(value = "/worktype/{workTypeId}/voice", produces = MediaType.APPLICATION_XML_VALUE)
+    public String handleWorkTypeVoice(@PathVariable Long workTypeId) {
+        VoiceResponse.Builder response = new VoiceResponse.Builder();
+        response.say(new Say.Builder("Please hold while we connect you to an agent.").build());
+
+        workTypeRepo.findById(workTypeId).ifPresentOrElse(
+                wt -> dialWorkTypeAgents(response, wt),
+                ()  -> dialAllOnlineAgents(response)
+        );
+
+        return response.build().toXml();
+    }
+
     // ── Campaign TwiML webhooks ───────────────────────────────────────────────
 
     /**
-     * TwiML for outbound campaign calls. When Twilio connects the called party,
-     * it hits this URL. We respond with TTS greeting and then conference/agent dial.
-     * Public — called by Twilio's servers, not the browser.
+     * Fallback TwiML for campaign calls not linked to a WorkType.
+     * Public — called by Twilio's servers.
      */
     @PostMapping(value = "/campaign/{campaignId}/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleCampaignVoice(@PathVariable Long campaignId) {
-        List<String> onlineUsernames = userService.getOnlineUsernames();
         VoiceResponse.Builder response = new VoiceResponse.Builder();
-
         response.say(new Say.Builder("Please hold while we connect you to an agent.").build());
-
-        if (!onlineUsernames.isEmpty()) {
-            Dial.Builder dialBuilder = new Dial.Builder();
-            for (String username : onlineUsernames) {
-                dialBuilder.client(new Client.Builder(username).build());
-            }
-            response.dial(dialBuilder.build());
-        } else {
-            response.say(new Say.Builder(
-                    "We are sorry, no agents are currently available. We will call you back.").build());
-        }
-
+        dialAllOnlineAgents(response);
         return response.build().toXml();
     }
 
@@ -169,5 +195,50 @@ public class TwilioController {
             campaignDialer.handleCallStatus(campaignId, contactId, CallStatus, CallSid);
         }
         return ResponseEntity.ok().build();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Ring agents staffed in a specific WorkType who are currently ONLINE. */
+    private void dialWorkTypeAgents(VoiceResponse.Builder response, WorkType wt) {
+        Set<String> staffedUsernames = wt.getAgents().stream()
+                .map(com.nmckibben.testapp.entity.User::getUsername)
+                .collect(Collectors.toSet());
+
+        List<String> onlineInQueue = userService.getOnlineUsernames().stream()
+                .filter(staffedUsernames::contains)
+                .collect(java.util.stream.Collectors.toList());
+
+        if (onlineInQueue.isEmpty()) {
+            // Nobody in this queue — fall back to any online agent
+            List<String> anyOnline = userService.getOnlineUsernames();
+            if (anyOnline.isEmpty()) {
+                response.say(new Say.Builder(
+                        "Sorry, no agents are available right now. Please try again later.").build());
+                return;
+            }
+            onlineInQueue = anyOnline;
+        }
+
+        Dial.Builder dialBuilder = new Dial.Builder();
+        for (String username : onlineInQueue) {
+            dialBuilder.client(new Client.Builder(username).build());
+        }
+        response.dial(dialBuilder.build());
+    }
+
+    /** Simulring all ONLINE agents (fallback when no queue is matched). */
+    private void dialAllOnlineAgents(VoiceResponse.Builder response) {
+        List<String> onlineUsernames = userService.getOnlineUsernames();
+        if (onlineUsernames.isEmpty()) {
+            response.say(new Say.Builder(
+                    "Sorry, no agents are available right now. Please try again later.").build());
+        } else {
+            Dial.Builder dialBuilder = new Dial.Builder();
+            for (String username : onlineUsernames) {
+                dialBuilder.client(new Client.Builder(username).build());
+            }
+            response.dial(dialBuilder.build());
+        }
     }
 }
