@@ -21,6 +21,7 @@ public class DiagnosticsController {
     private final CampaignRepository campaignRepo;
     private final CampaignContactRepository contactRepo;
     private final UserRepository userRepo;
+
     public DiagnosticsController(EventLogService eventLog,
                                   CampaignRepository campaignRepo,
                                   CampaignContactRepository contactRepo,
@@ -31,7 +32,6 @@ public class DiagnosticsController {
         this.userRepo     = userRepo;
     }
 
-    /** Paginated event log — ?page=0&size=50 */
     @GetMapping("/events")
     public Page<SystemEvent> getEvents(
             @RequestParam(defaultValue = "0")  int page,
@@ -39,7 +39,6 @@ public class DiagnosticsController {
         return eventLog.getRecent(page, Math.min(size, 200));
     }
 
-    /** System health summary */
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> getHealth() {
         long errors          = eventLog.countErrors();
@@ -59,38 +58,9 @@ public class DiagnosticsController {
         ));
     }
 
-    /**
-     * Manually trigger one dialer cycle and return a diagnostic report.
-     * Useful for testing without waiting for the 30-second scheduler tick.
-     */
-    @GetMapping("/trigger-dialer")
-    public ResponseEntity<Map<String, Object>> triggerDialer() {
-        Map<String, Object> report = new LinkedHashMap<>();
-        long activeCampaigns = campaignRepo.findByStatus("ACTIVE").size();
-        report.put("activeCampaignsFound", activeCampaigns);
-        long eventsBefore = eventLog.getRecent(0, 1).getTotalElements();
-        report.put("eventCountBefore", eventsBefore);
-
-        String outcome;
-        try {
-            dialerService.run();
-            outcome = "completed";
-        } catch (Exception ex) {
-            outcome = "threw: " + ex.getClass().getSimpleName() + ": " + ex.getMessage();
-        }
-
-        report.put("dialerOutcome", outcome);
-        long eventsAfter = eventLog.getRecent(0, 1).getTotalElements();
-        report.put("eventCountAfter", eventsAfter);
-        report.put("newEventsCreated", eventsAfter - eventsBefore);
-        return ResponseEntity.ok(report);
-    }
-
-    /** Clear all events (admin only) */
     @DeleteMapping("/events")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> clearEvents() {
-        eventLog.getRecent(0, 10);
         return ResponseEntity.noContent().build();
     }
 }
