@@ -1,5 +1,6 @@
 package com.nmckibben.testapp.entity;
 
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -48,6 +49,7 @@ public class WorkType {
     // ─────────────────────────────────────────────────────────────────────────
 
     @ManyToMany(fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     @JoinTable(name = "agent_work_types",
                joinColumns = @JoinColumn(name = "work_type_id"),
                inverseJoinColumns = @JoinColumn(name = "user_id"))

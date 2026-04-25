@@ -125,6 +125,8 @@ public class TwilioController {
         }
 
         if (To != null && !To.isBlank()) {
+            To = normalizeE164(To);
+
             // 2. Active call flow bound to this trigger number
             Optional<CallFlow> flowByNumber = callFlowRepo.findByTriggerNumberAndActiveTrue(To);
             if (flowByNumber.isPresent()) {
@@ -280,6 +282,23 @@ public class TwilioController {
         Dial.Builder dial = new Dial.Builder();
         for (String u : online) dial.client(new Client.Builder(u).build());
         response.dial(dial.build());
+    }
+
+    /**
+     * Normalise a dialled string to E.164.
+     * 10 digits → +1XXXXXXXXXX (North America)
+     * 11 digits starting with 1 → +1XXXXXXXXXX
+     * Already has '+' → leave as-is (strip spaces/dashes first)
+     */
+    private String normalizeE164(String raw) {
+        if (raw == null) return raw;
+        // client: identifiers and SIP addresses – don't touch
+        if (raw.startsWith("client:") || raw.contains("@")) return raw;
+        String digits = raw.replaceAll("[^\\d]", "");
+        if (raw.startsWith("+")) return "+" + digits;
+        if (digits.length() == 10) return "+1" + digits;
+        if (digits.length() == 11 && digits.startsWith("1")) return "+" + digits;
+        return raw; // unknown format – return unchanged
     }
 
     /** Simulring all ONLINE agents — used as a final fallback. */

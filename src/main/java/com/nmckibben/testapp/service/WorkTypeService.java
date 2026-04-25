@@ -5,6 +5,7 @@ import com.nmckibben.testapp.entity.WorkType;
 import com.nmckibben.testapp.repository.UserRepository;
 import com.nmckibben.testapp.repository.WorkTypeRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
@@ -24,10 +25,14 @@ public class WorkTypeService {
     public WorkType save(WorkType wt) { return workTypeRepo.save(wt); }
     public void delete(Long id) { workTypeRepo.deleteById(id); }
 
+    @Transactional
     public WorkType setAgents(Long workTypeId, Set<Long> userIds) {
-        WorkType wt = get(workTypeId);
-        Set<User> agents = new java.util.HashSet<>(userRepo.findAllById(userIds));
-        wt.setAgents(agents);
+        WorkType wt = workTypeRepo.findById(workTypeId).orElseThrow();
+        // Clear the managed collection so Hibernate issues DELETE before INSERT
+        wt.getAgents().clear();
+        workTypeRepo.saveAndFlush(wt);
+        Set<User> newAgents = new java.util.HashSet<>(userRepo.findAllById(userIds));
+        wt.getAgents().addAll(newAgents);
         return workTypeRepo.save(wt);
     }
 }

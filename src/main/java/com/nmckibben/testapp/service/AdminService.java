@@ -17,7 +17,7 @@ public class AdminService {
     }
 
     public List<UserDto> getAllUsers() {
-        return userRepository.findAll().stream().map(UserDto::from).collect(Collectors.toList());
+        return userRepository.findAll().stream().map(UserDto::fromSlim).collect(Collectors.toList());
     }
 
     public UserDto updateUserRole(Long userId, String role) {

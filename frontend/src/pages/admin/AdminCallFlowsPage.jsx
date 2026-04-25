@@ -20,7 +20,7 @@ let nodeIdCounter = 1
 function newNodeId() { return `node_${nodeIdCounter++}` }
 
 // ── Canvas / node-graph editor ────────────────────────────────────────────
-function FlowCanvas({ flow, onChange, dataActions }) {
+function FlowCanvas({ flow, onChange, dataActions, workTypes = [], agents = [] }) {
   const [nodes, setNodes]         = useState(flow?.nodes || [])
   const [edges, setEdges]         = useState(flow?.edges || [])
   const [selected, setSelected]   = useState(null)   // selected node id
@@ -28,10 +28,8 @@ function FlowCanvas({ flow, onChange, dataActions }) {
   const [connecting, setConnecting] = useState(null) // source node id
   const canvasRef = useRef(null)
 
-  // Sync to parent
+  // Sync to parent (one-way: local → parent only)
   useEffect(() => { onChange({ nodes, edges }) }, [nodes, edges])
-  // Sync from parent when flow changes (load from server)
-  useEffect(() => { setNodes(flow?.nodes||[]); setEdges(flow?.edges||[]) }, [flow])
 
   function addNode(type) {
     const id = newNodeId()
@@ -201,16 +199,39 @@ function FlowCanvas({ flow, onChange, dataActions }) {
           )}
           {selectedNode.type === 'route_queue' && (
             <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Queue Name</label>
-              <input value={selectedNode.data?.queue || ''} onChange={e => updateNodeData(selectedNode.id, { queue: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
+              <label className="text-xs font-medium text-gray-600 block mb-1">Route to Queue</label>
+              {workTypes.length > 0 ? (
+                <select value={selectedNode.data?.queue || ''} onChange={e => updateNodeData(selectedNode.id, { queue: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 bg-white">
+                  <option value="">— Select Queue —</option>
+                  {workTypes.map(wt => (
+                    <option key={wt.id} value={wt.name}>{wt.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No work types found. Create one in Work Types first.</p>
+              )}
+              {selectedNode.data?.queue && (
+                <p className="text-xs text-gray-400 mt-1">→ {selectedNode.data.queue}</p>
+              )}
             </div>
           )}
           {selectedNode.type === 'route_agent' && (
             <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Agent Username</label>
-              <input value={selectedNode.data?.agentUsername || ''} onChange={e => updateNodeData(selectedNode.id, { agentUsername: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
+              <label className="text-xs font-medium text-gray-600 block mb-1">Route to Agent</label>
+              {agents.length > 0 ? (
+                <select value={selectedNode.data?.agentUsername || ''} onChange={e => updateNodeData(selectedNode.id, { agentUsername: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 bg-white">
+                  <option value="">— Select Agent —</option>
+                  {agents.map(a => (
+                    <option key={a.id} value={a.username}>{a.displayName || a.username}</option>
+                  ))}
+                </select>
+              ) : (
+                <input value={selectedNode.data?.agentUsername || ''} onChange={e => updateNodeData(selectedNode.id, { agentUsername: e.target.value })}
+                  placeholder="username"
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400" />
+              )}
             </div>
           )}
           {selectedNode.type === 'data_action' && (
@@ -245,6 +266,8 @@ function FlowCanvas({ flow, onChange, dataActions }) {
 export default function AdminCallFlowsPage() {
   const [flows, setFlows]           = useState([])
   const [dataActions, setDataActions] = useState([])
+  const [workTypes, setWorkTypes]   = useState([])
+  const [agents, setAgents]         = useState([])
   const [editing, setEditing]       = useState(null)
   const [editName, setEditName]     = useState('')
   const [editDesc, setEditDesc]     = useState('')
@@ -255,11 +278,13 @@ export default function AdminCallFlowsPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [f, da] = await Promise.all([
+    const [f, da, wt, ag] = await Promise.all([
       apiJson('/api/admin/call-flows'),
       apiJson('/api/admin/integrations/data-actions').catch(() => []),
+      apiJson('/api/admin/work-types').catch(() => []),
+      apiJson('/api/admin/users').catch(() => []),
     ])
-    setFlows(f); setDataActions(da)
+    setFlows(f); setDataActions(da); setWorkTypes(wt); setAgents(ag)
   }
 
   async function openNew() {
@@ -307,7 +332,7 @@ export default function AdminCallFlowsPage() {
         </button>
       </div>
       <div className="flex-1 min-h-0">
-        <FlowCanvas flow={currentFlow} onChange={setCurrentFlow} dataActions={dataActions} />
+        <FlowCanvas key={editing?.id ?? 'new'} flow={currentFlow} onChange={setCurrentFlow} dataActions={dataActions} workTypes={workTypes} agents={agents} />
       </div>
     </div>
   )

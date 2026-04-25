@@ -1,5 +1,6 @@
 package com.nmckibben.testapp.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -17,6 +18,7 @@ public class User {
     @Column(nullable = false)
     private String displayName;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -31,6 +33,7 @@ public class User {
     private String role = "AGENT";
 
     /** Base64 data URL of the user's profile picture, e.g. data:image/jpeg;base64,... */
+    @JsonIgnore
     @Column(columnDefinition = "NVARCHAR(MAX)")
     private String avatarData;
 

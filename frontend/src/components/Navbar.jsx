@@ -23,6 +23,49 @@ const ROLE_STYLES = {
 
 const KEYS = ['1','2','3','4','5','6','7','8','9','*','0','#']
 
+const DTMF_FREQS = {
+  '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+  '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+  '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+  '*': [941, 1209], '0': [941, 1336], '#': [941, 1477],
+}
+
+function playDtmf(key) {
+  const freqs = DTMF_FREQS[key]
+  if (!freqs) return
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.12, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+    gain.connect(ctx.destination)
+    freqs.forEach(freq => {
+      const osc = ctx.createOscillator()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      osc.connect(gain)
+      osc.start()
+      osc.stop(ctx.currentTime + 0.15)
+    })
+    setTimeout(() => ctx.close(), 300)
+  } catch (_) {}
+}
+
+function normalizePhone(raw) {
+  const s = raw.trim()
+  // Already E.164
+  if (/^\+\d{7,15}$/.test(s)) return s
+  // Strip everything except digits
+  const digits = s.replace(/\D/g, '')
+  if (!digits) return s
+  // 10-digit North American → +1XXXXXXXXXX
+  if (digits.length === 10) return '+1' + digits
+  // 11-digit starting with 1 → +XXXXXXXXXXX
+  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits
+  // Anything else: prepend + and hope for the best
+  return '+' + digits
+}
+
 function fmt(s) {
   if (!s) return ''
   const m = Math.floor(s / 60)
@@ -91,10 +134,10 @@ export default function Navbar({ user, status, onStatusChange, onMenuClick, onLo
 
   function handleDial() {
     if (!dialInput.trim()) return
-    const v = dialInput.trim()
+    const normalized = normalizePhone(dialInput)
     setDialInput('')
     setSuggestions([])
-    dial(v, v)
+    dial(normalized, normalized)
   }
 
   // Contacts
@@ -216,7 +259,7 @@ export default function Navbar({ user, status, onStatusChange, onMenuClick, onLo
           {/* Keys */}
           <div className="grid grid-cols-3 gap-1.5 mb-2">
             {KEYS.map(k => (
-              <button key={k} onClick={() => setDialInput(d => d + k)}
+              <button key={k} onClick={() => { playDtmf(k); setDialInput(d => d + k) }}
                 className="h-11 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 border border-gray-200 rounded-lg text-base font-medium text-gray-700 transition-colors select-none">
                 {k}
               </button>
