@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nmckibben.testapp.entity.CallFlow;
 import com.nmckibben.testapp.entity.CallTrace;
 import com.nmckibben.testapp.entity.WorkType;
-import com.nmckibben.testapp.repository.WorkTypeRepository;
+import com.nmckibben.testapp.repository.CallFlowRepository;
 import com.twilio.twiml.VoiceResponse;
 import com.twilio.twiml.voice.Client;
 import com.twilio.twiml.voice.Dial;
@@ -19,13 +19,20 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * Interprets a saved call flow (stored as React-Flow JSON) and produces TwiML.
+ * Call Flow domain — interprets a saved call flow (stored as React-Flow JSON)
+ * and produces TwiML.
+ *
+ * Dependency change (microservice prep):
+ *   Previously injected WorkTypeRepository directly (cross-domain repo access).
+ *   Now delegates to WorkTypeService, which is the public API of the Routing
+ *   domain.  If Routing becomes a separate service, this call becomes an HTTP
+ *   request — the executor doesn't change.
  *
  * Node types handled:
  *   start        – entry point, follow the outgoing edge
  *   greeting     – <Say> the configured message
- *   menu         – <Gather numDigits="1"> with IVR prompt; posts back to /flow/{id}/gather
- *   route_queue  – <Dial> all ONLINE agents staffed in the named WorkType
+ *   menu         – <Gather numDigits="1"> with IVR prompt
+ *   route_queue  – <Dial> online agents in the named WorkType
  *   route_agent  – <Dial><Client>username</Client></Dial>
  *   voicemail    – <Say> prompt then <Record transcribe="true">
  *   end          – <Hangup>
@@ -33,31 +40,34 @@ import java.util.stream.StreamSupport;
 @Service
 public class CallFlowExecutorService {
 
-    private final UserService userService;
-    private final WorkTypeRepository workTypeRepo;
-    private final CallTraceService traceService;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final UserService        userService;
+    private final WorkTypeService    workTypeService;   // ← Routing domain service, not repo
+    private final CallFlowRepository callFlowRepo;
+    private final CallTraceService   traceService;
+    private final ObjectMapper       mapper = new ObjectMapper();
 
-    public CallFlowExecutorService(UserService userService, WorkTypeRepository workTypeRepo, CallTraceService traceService) {
-        this.userService  = userService;
-        this.workTypeRepo = workTypeRepo;
-        this.traceService = traceService;
+    public CallFlowExecutorService(UserService userService,
+                                   WorkTypeService workTypeService,
+                                   CallFlowRepository callFlowRepo,
+                                   CallTraceService traceService) {
+        this.userService     = userService;
+        this.workTypeService = workTypeService;
+        this.callFlowRepo    = callFlowRepo;
+        this.traceService    = traceService;
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ── Public execute API ────────────────────────────────────────────────────
 
-    /** Execute a call flow from its Start node and return TwiML XML. Backward-compatible 2-arg version. */
     public String execute(CallFlow flow, String baseUrl) {
         return execute(flow, baseUrl, null, null, null);
     }
 
-    /** Execute a call flow with callSid tracking and workType context. */
     public String execute(CallFlow flow, String baseUrl, String callSid) {
         return execute(flow, baseUrl, callSid, null, null);
     }
 
-    /** Execute a call flow with full tracing context. */
-    public String execute(CallFlow flow, String baseUrl, String callSid, Long workTypeId, String workTypeName) {
+    public String execute(CallFlow flow, String baseUrl, String callSid,
+                          Long workTypeId, String workTypeName) {
         try {
             traceService.log(CallTrace.of("FLOW_START", "INFO", "Starting flow: " + flow.getName())
                     .callSid(callSid)
@@ -79,7 +89,8 @@ public class CallFlowExecutorService {
             return response.build().toXml();
 
         } catch (Exception ex) {
-            traceService.log(CallTrace.of("FLOW_ERROR", "FAILURE", "Flow execution error: " + ex.getMessage())
+            traceService.log(CallTrace.of("FLOW_ERROR", "FAILURE",
+                    "Flow execution error: " + ex.getMessage())
                     .callSid(callSid)
                     .flow(flow.getId(), flow.getName())
                     .workType(workTypeId, workTypeName));
@@ -87,23 +98,47 @@ public class CallFlowExecutorService {
         }
     }
 
+    // ── ID-based helpers (used by Twilio webhook endpoints) ───────────────────
+
+    /** Execute a flow looked up by ID — used by /flow/{flowId}/voice webhook. */
+    public String executeById(Long flowId, String baseUrl) {
+        return callFlowRepo.findById(flowId)
+                .map(f -> execute(f, baseUrl))
+                .orElse(error("Call flow not found."));
+    }
+
+    /** Handle gather callback looked up by flow ID — used by /flow/{flowId}/gather webhook. */
+    public String handleGatherById(Long flowId, String nodeId, String digit, String baseUrl) {
+        return callFlowRepo.findById(flowId)
+                .map(f -> handleGather(f, nodeId, digit, baseUrl, null))
+                .orElse(error("Call flow not found."));
+    }
+
     /**
-     * Handle an IVR gather callback.
-     * Called by Twilio after the caller presses a digit on a menu node.
-     *
-     * @param flow       the call flow
-     * @param menuNodeId the ID of the menu node that collected the digit
-     * @param digit      the digit pressed ("1", "2", etc.)
-     * @param baseUrl    app base URL for nested callbacks
+     * Execute a WorkType's call flow (or fall back to ringing agents directly).
+     * Used by /worktype/{workTypeId}/voice webhook.
      */
+    public String executeByWorkTypeId(Long workTypeId, String baseUrl) {
+        WorkType wt;
+        try { wt = workTypeService.get(workTypeId); }
+        catch (Exception e) { return error("Work type not found."); }
+        if (wt.getCallFlow() != null && wt.getCallFlow().isActive()) {
+            return execute(wt.getCallFlow(), baseUrl);
+        }
+        VoiceResponse.Builder response = new VoiceResponse.Builder();
+        response.say(new Say.Builder("Please hold while we connect you to an agent.").build());
+        buildQueueDial(response, wt.getName());
+        return response.build().toXml();
+    }
+
+    // ── Gather callback ───────────────────────────────────────────────────────
+
     public String handleGather(CallFlow flow, String menuNodeId, String digit, String baseUrl) {
         return handleGather(flow, menuNodeId, digit, baseUrl, null);
     }
 
-    /**
-     * Handle an IVR gather callback with tracing.
-     */
-    public String handleGather(CallFlow flow, String menuNodeId, String digit, String baseUrl, String callSid) {
+    public String handleGather(CallFlow flow, String menuNodeId, String digit,
+                               String baseUrl, String callSid) {
         try {
             JsonNode root  = mapper.readTree(flow.getFlowJson());
             List<JsonNode> nodes = toList(root.get("nodes"));
@@ -114,14 +149,11 @@ public class CallFlowExecutorService {
                     .findFirst().orElse(null);
             if (menuNode == null) return error("Menu node not found.");
 
-            // Outgoing edges from this menu node, in encounter order
             List<JsonNode> outEdges = edges.stream()
                     .filter(e -> menuNodeId.equals(e.path("source").asText()))
                     .collect(Collectors.toList());
 
-            // Parse "1=Sales\n2=Support\n0=Operator" → ordered digit list
-            JsonNode data = menuNode.path("data");
-            String optionsText = data.path("options").asText("");
+            String optionsText = menuNode.path("data").path("options").asText("");
             List<String> digitOrder = Arrays.stream(optionsText.split("\n"))
                     .map(line -> line.contains("=") ? line.split("=")[0].trim() : "")
                     .filter(d -> !d.isEmpty())
@@ -132,9 +164,8 @@ public class CallFlowExecutorService {
             if (idx >= 0 && idx < outEdges.size()) {
                 nextNodeId = outEdges.get(idx).path("target").asText();
             } else if (!outEdges.isEmpty()) {
-                nextNodeId = outEdges.get(0).path("target").asText(); // fallback: first edge
+                nextNodeId = outEdges.get(0).path("target").asText();
             }
-
             if (nextNodeId == null) return error("No route for digit " + digit);
 
             String nid = nextNodeId;
@@ -155,116 +186,30 @@ public class CallFlowExecutorService {
         }
     }
 
-    // ── Node traversal ────────────────────────────────────────────────────────
+    // ── Dial helpers (called by TwilioController fallback paths) ─────────────
 
-    private void traverse(JsonNode current, List<JsonNode> nodes, List<JsonNode> edges,
-                          VoiceResponse.Builder response, Long flowId, String baseUrl) {
-        traverse(current, nodes, edges, response, flowId, baseUrl, null, null, null);
-    }
-
-    private void traverse(JsonNode current, List<JsonNode> nodes, List<JsonNode> edges,
-                          VoiceResponse.Builder response, Long flowId, String baseUrl,
-                          String callSid, Long workTypeId, String workTypeName) {
-        Set<String> visited = new HashSet<>();
-        while (current != null) {
-            String id   = current.path("id").asText();
-            String type = current.path("type").asText();
-            if (visited.contains(id)) break;
-            visited.add(id);
-
-            JsonNode data = current.path("data");
-
-            switch (type) {
-                case "start" -> { /* just follow the edge */ }
-
-                case "greeting" -> {
-                    String msg = data.path("message").asText("").trim();
-                    if (!msg.isEmpty()) response.say(new Say.Builder(msg).build());
-                }
-
-                case "menu" -> {
-                    buildGather(response, current, flowId, baseUrl);
-                    return; // Twilio will POST back; stop building TwiML here
-                }
-
-                case "route_queue" -> {
-                    buildQueueDial(response, data.path("queue").asText("").trim());
-                    return;
-                }
-
-                case "route_agent" -> {
-                    String username = data.path("agentUsername").asText("").trim();
-                    if (!username.isEmpty()) {
-                        response.dial(new Dial.Builder()
-                                .client(new Client.Builder(username).build())
-                                .build());
-                    }
-                    return;
-                }
-
-                case "voicemail" -> {
-                    String prompt = data.path("prompt").asText("Please leave a message after the tone.").trim();
-                    response.say(new Say.Builder(prompt).build());
-                    response.record(new com.twilio.twiml.voice.Record.Builder().transcribe(true).build());
-                    return;
-                }
-
-                case "end" -> {
-                    response.hangup(new Hangup.Builder().build());
-                    return;
-                }
-            }
-
-            // Log node execution if not "start"
-            if (!type.equals("start")) {
-                traceService.log(CallTrace.of("FLOW_NODE", "SUCCESS", "Executed node: " + type)
-                        .callSid(callSid)
-                        .flow(flowId, null)
-                        .workType(workTypeId, workTypeName)
-                        .node(id, type, data.path("label").asText(type)));
-            }
-
-            // Follow the first outgoing edge
-            String cid = id;
-            Optional<String> nextId = edges.stream()
-                    .filter(e -> cid.equals(e.path("source").asText()))
-                    .map(e -> e.path("target").asText())
-                    .findFirst();
-
-            if (nextId.isEmpty()) break;
-            String nid = nextId.get();
-            current = nodes.stream()
-                    .filter(n -> nid.equals(n.path("id").asText()))
-                    .findFirst().orElse(null);
+    /** Simulring all ONLINE agents — exposed for the campaign/fallback webhook. */
+    public void dialAllOnlineAgents(VoiceResponse.Builder response) {
+        List<String> online = userService.getOnlineUsernames();
+        if (online.isEmpty()) {
+            response.say(new Say.Builder(
+                    "Sorry, no agents are available right now. Please try again later.").build());
+        } else {
+            Dial.Builder dial = new Dial.Builder();
+            for (String u : online) dial.client(new Client.Builder(u).build());
+            response.dial(dial.build());
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private void buildGather(VoiceResponse.Builder response, JsonNode menuNode,
-                             Long flowId, String baseUrl) {
-        JsonNode data  = menuNode.path("data");
-        String prompt  = data.path("prompt").asText("Please make a selection.").trim();
-        String nodeId  = menuNode.path("id").asText();
-        String action  = baseUrl + "/api/twilio/flow/" + flowId + "/gather?nodeId=" + nodeId;
-
-        response.gather(new Gather.Builder()
-                .numDigits(1)
-                .action(action)
-                .say(new Say.Builder(prompt).build())
-                .build());
-
-        // Timeout fallback
-        response.say(new Say.Builder("We did not receive your input. Goodbye.").build());
-        response.hangup(new Hangup.Builder().build());
-    }
-
-    /** Dial all ONLINE agents in the named WorkType queue (falls back to all agents). */
+    /**
+     * Dial online agents in a named WorkType queue.
+     * Uses WorkTypeService (Routing domain API) not WorkTypeRepository.
+     */
     public void buildQueueDial(VoiceResponse.Builder response, String queueName) {
         List<String> agents;
-
-        if (!queueName.isEmpty()) {
-            Optional<WorkType> wt = workTypeRepo.findAll().stream()
+        if (!queueName.isBlank()) {
+            // Delegate lookup to the Routing domain's service
+            Optional<WorkType> wt = workTypeService.getAll().stream()
                     .filter(w -> queueName.equalsIgnoreCase(w.getName()))
                     .findFirst();
             if (wt.isPresent()) {
@@ -291,9 +236,104 @@ public class CallFlowExecutorService {
         response.dial(dial.build());
     }
 
+    // ── Node traversal ────────────────────────────────────────────────────────
+
+    private void traverse(JsonNode current, List<JsonNode> nodes, List<JsonNode> edges,
+                          VoiceResponse.Builder response, Long flowId, String baseUrl,
+                          String callSid, Long workTypeId, String workTypeName) {
+        Set<String> visited = new HashSet<>();
+        while (current != null) {
+            String id   = current.path("id").asText();
+            String type = current.path("type").asText();
+            if (visited.contains(id)) break;
+            visited.add(id);
+
+            JsonNode data = current.path("data");
+
+            switch (type) {
+                case "start" -> { /* just follow the edge */ }
+
+                case "greeting" -> {
+                    String msg = data.path("message").asText("").trim();
+                    if (!msg.isEmpty()) response.say(new Say.Builder(msg).build());
+                }
+
+                case "menu" -> {
+                    buildGather(response, current, flowId, baseUrl);
+                    return;
+                }
+
+                case "route_queue" -> {
+                    buildQueueDial(response, data.path("queue").asText("").trim());
+                    return;
+                }
+
+                case "route_agent" -> {
+                    String username = data.path("agentUsername").asText("").trim();
+                    if (!username.isEmpty()) {
+                        response.dial(new Dial.Builder()
+                                .client(new Client.Builder(username).build())
+                                .build());
+                    }
+                    return;
+                }
+
+                case "voicemail" -> {
+                    String prompt = data.path("prompt")
+                            .asText("Please leave a message after the tone.").trim();
+                    response.say(new Say.Builder(prompt).build());
+                    response.record(new com.twilio.twiml.voice.Record.Builder()
+                            .transcribe(true).build());
+                    return;
+                }
+
+                case "end" -> {
+                    response.hangup(new Hangup.Builder().build());
+                    return;
+                }
+            }
+
+            if (!type.equals("start")) {
+                traceService.log(CallTrace.of("FLOW_NODE", "SUCCESS", "Executed node: " + type)
+                        .callSid(callSid)
+                        .flow(flowId, null)
+                        .workType(workTypeId, workTypeName)
+                        .node(id, type, data.path("label").asText(type)));
+            }
+
+            String cid = id;
+            Optional<String> nextId = edges.stream()
+                    .filter(e -> cid.equals(e.path("source").asText()))
+                    .map(e -> e.path("target").asText())
+                    .findFirst();
+            if (nextId.isEmpty()) break;
+
+            String nid = nextId.get();
+            current = nodes.stream()
+                    .filter(n -> nid.equals(n.path("id").asText()))
+                    .findFirst().orElse(null);
+        }
+    }
+
+    private void buildGather(VoiceResponse.Builder response, JsonNode menuNode,
+                             Long flowId, String baseUrl) {
+        JsonNode data = menuNode.path("data");
+        String prompt = data.path("prompt").asText("Please make a selection.").trim();
+        String nodeId = menuNode.path("id").asText();
+        String action = baseUrl + "/api/twilio/flow/" + flowId + "/gather?nodeId=" + nodeId;
+
+        response.gather(new Gather.Builder()
+                .numDigits(1)
+                .action(action)
+                .say(new Say.Builder(prompt).build())
+                .build());
+        response.say(new Say.Builder("We did not receive your input. Goodbye.").build());
+        response.hangup(new Hangup.Builder().build());
+    }
+
     private String error(String msg) {
         return new VoiceResponse.Builder()
-                .say(new Say.Builder("We are sorry, an error occurred. " + msg).build())
+                .say(new Say.Builder("We are sorry, an error occurred.").build())
                 .hangup(new Hangup.Builder().build())
                 .build().toXml();
     }
