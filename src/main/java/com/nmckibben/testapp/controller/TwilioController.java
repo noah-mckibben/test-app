@@ -146,9 +146,11 @@ public class TwilioController {
                 return response.build().toXml();
             }
 
-            // 5. Outbound PSTN
+            // 5. Outbound PSTN — callerId required when call comes from browser SDK
+            //    (From = "client:username", not a Twilio number, so Twilio can't infer it)
             if (!To.equals(twilioPhoneNumber)) {
                 return response.dial(new Dial.Builder()
+                        .callerId(twilioPhoneNumber)
                         .number(new Number.Builder(To).build())
                         .build()).build().toXml();
             }
