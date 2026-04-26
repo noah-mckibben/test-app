@@ -3,6 +3,7 @@ package com.nmckibben.testapp.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nmckibben.testapp.entity.CallFlow;
+import com.nmckibben.testapp.entity.CallTrace;
 import com.nmckibben.testapp.entity.WorkType;
 import com.nmckibben.testapp.repository.WorkTypeRepository;
 import com.twilio.twiml.VoiceResponse;
@@ -34,18 +35,35 @@ public class CallFlowExecutorService {
 
     private final UserService userService;
     private final WorkTypeRepository workTypeRepo;
+    private final CallTraceService traceService;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public CallFlowExecutorService(UserService userService, WorkTypeRepository workTypeRepo) {
+    public CallFlowExecutorService(UserService userService, WorkTypeRepository workTypeRepo, CallTraceService traceService) {
         this.userService  = userService;
         this.workTypeRepo = workTypeRepo;
+        this.traceService = traceService;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /** Execute a call flow from its Start node and return TwiML XML. */
+    /** Execute a call flow from its Start node and return TwiML XML. Backward-compatible 2-arg version. */
     public String execute(CallFlow flow, String baseUrl) {
+        return execute(flow, baseUrl, null, null, null);
+    }
+
+    /** Execute a call flow with callSid tracking and workType context. */
+    public String execute(CallFlow flow, String baseUrl, String callSid) {
+        return execute(flow, baseUrl, callSid, null, null);
+    }
+
+    /** Execute a call flow with full tracing context. */
+    public String execute(CallFlow flow, String baseUrl, String callSid, Long workTypeId, String workTypeName) {
         try {
+            traceService.log(CallTrace.of("FLOW_START", "INFO", "Starting flow: " + flow.getName())
+                    .callSid(callSid)
+                    .flow(flow.getId(), flow.getName())
+                    .workType(workTypeId, workTypeName));
+
             JsonNode root  = mapper.readTree(flow.getFlowJson());
             List<JsonNode> nodes = toList(root.get("nodes"));
             List<JsonNode> edges = toList(root.get("edges"));
@@ -57,10 +75,14 @@ public class CallFlowExecutorService {
             if (start == null) return error("No start node found in flow.");
 
             VoiceResponse.Builder response = new VoiceResponse.Builder();
-            traverse(start, nodes, edges, response, flow.getId(), baseUrl);
+            traverse(start, nodes, edges, response, flow.getId(), baseUrl, callSid, workTypeId, workTypeName);
             return response.build().toXml();
 
         } catch (Exception ex) {
+            traceService.log(CallTrace.of("FLOW_ERROR", "FAILURE", "Flow execution error: " + ex.getMessage())
+                    .callSid(callSid)
+                    .flow(flow.getId(), flow.getName())
+                    .workType(workTypeId, workTypeName));
             return error("Flow execution error: " + ex.getMessage());
         }
     }
@@ -75,6 +97,13 @@ public class CallFlowExecutorService {
      * @param baseUrl    app base URL for nested callbacks
      */
     public String handleGather(CallFlow flow, String menuNodeId, String digit, String baseUrl) {
+        return handleGather(flow, menuNodeId, digit, baseUrl, null);
+    }
+
+    /**
+     * Handle an IVR gather callback with tracing.
+     */
+    public String handleGather(CallFlow flow, String menuNodeId, String digit, String baseUrl, String callSid) {
         try {
             JsonNode root  = mapper.readTree(flow.getFlowJson());
             List<JsonNode> nodes = toList(root.get("nodes"));
@@ -115,7 +144,7 @@ public class CallFlowExecutorService {
 
             VoiceResponse.Builder response = new VoiceResponse.Builder();
             if (nextNode != null) {
-                traverse(nextNode, nodes, edges, response, flow.getId(), baseUrl);
+                traverse(nextNode, nodes, edges, response, flow.getId(), baseUrl, callSid, null, null);
             } else {
                 response.hangup(new Hangup.Builder().build());
             }
@@ -130,6 +159,12 @@ public class CallFlowExecutorService {
 
     private void traverse(JsonNode current, List<JsonNode> nodes, List<JsonNode> edges,
                           VoiceResponse.Builder response, Long flowId, String baseUrl) {
+        traverse(current, nodes, edges, response, flowId, baseUrl, null, null, null);
+    }
+
+    private void traverse(JsonNode current, List<JsonNode> nodes, List<JsonNode> edges,
+                          VoiceResponse.Builder response, Long flowId, String baseUrl,
+                          String callSid, Long workTypeId, String workTypeName) {
         Set<String> visited = new HashSet<>();
         while (current != null) {
             String id   = current.path("id").asText();
@@ -178,6 +213,15 @@ public class CallFlowExecutorService {
                     response.hangup(new Hangup.Builder().build());
                     return;
                 }
+            }
+
+            // Log node execution if not "start"
+            if (!type.equals("start")) {
+                traceService.log(CallTrace.of("FLOW_NODE", "SUCCESS", "Executed node: " + type)
+                        .callSid(callSid)
+                        .flow(flowId, null)
+                        .workType(workTypeId, workTypeName)
+                        .node(id, type, data.path("label").asText(type)));
             }
 
             // Follow the first outgoing edge

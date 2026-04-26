@@ -55,6 +55,9 @@ public class WorkType {
                inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> agents = new HashSet<>();
 
+    @Column(nullable = false)
+    private boolean tracingEnabled = false;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -74,5 +77,7 @@ public class WorkType {
     public void setCallFlow(CallFlow cf) { this.callFlow = cf; }
     public Set<User> getAgents() { return agents; }
     public void setAgents(Set<User> agents) { this.agents = agents; }
+    public boolean isTracingEnabled() { return tracingEnabled; }
+    public void setTracingEnabled(boolean tracingEnabled) { this.tracingEnabled = tracingEnabled; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

@@ -1,10 +1,12 @@
 package com.nmckibben.testapp.controller;
 
 import com.nmckibben.testapp.entity.CallFlow;
+import com.nmckibben.testapp.entity.CallTrace;
 import com.nmckibben.testapp.entity.WorkType;
 import com.nmckibben.testapp.repository.CallFlowRepository;
 import com.nmckibben.testapp.repository.WorkTypeRepository;
 import com.nmckibben.testapp.service.CallFlowExecutorService;
+import com.nmckibben.testapp.service.CallTraceService;
 import com.nmckibben.testapp.service.CampaignDialerService;
 import com.nmckibben.testapp.service.UserService;
 import com.twilio.jwt.accesstoken.AccessToken;
@@ -54,17 +56,20 @@ public class TwilioController {
     private final WorkTypeRepository      workTypeRepo;
     private final CallFlowRepository      callFlowRepo;
     private final CallFlowExecutorService executor;
+    private final CallTraceService        traceService;
 
     public TwilioController(UserService userService,
                              CampaignDialerService campaignDialer,
                              WorkTypeRepository workTypeRepo,
                              CallFlowRepository callFlowRepo,
-                             CallFlowExecutorService executor) {
+                             CallFlowExecutorService executor,
+                             CallTraceService traceService) {
         this.userService    = userService;
         this.campaignDialer = campaignDialer;
         this.workTypeRepo   = workTypeRepo;
         this.callFlowRepo   = callFlowRepo;
         this.executor       = executor;
+        this.traceService   = traceService;
     }
 
     // ── Access token ──────────────────────────────────────────────────────────
@@ -112,13 +117,19 @@ public class TwilioController {
     @PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public String handleVoice(
             @RequestParam(required = false) String To,
-            @RequestParam(required = false) String From) {
+            @RequestParam(required = false) String From,
+            @RequestParam(required = false) String CallSid) {
 
         VoiceResponse.Builder response = new VoiceResponse.Builder();
 
         // 1. App-to-app
         if (To != null && To.startsWith("client:")) {
             String clientId = To.substring("client:".length());
+            traceService.log(CallTrace.of("CALL_ROUTED", "INFO", "App-to-app call to: " + clientId)
+                    .callSid(CallSid)
+                    .direction("INBOUND")
+                    .from(From)
+                    .to(To));
             return response.dial(new Dial.Builder()
                     .client(new Client.Builder(clientId).build())
                     .build()).build().toXml();
@@ -130,7 +141,14 @@ public class TwilioController {
             // 2. Active call flow bound to this trigger number
             Optional<CallFlow> flowByNumber = callFlowRepo.findByTriggerNumberAndActiveTrue(To);
             if (flowByNumber.isPresent()) {
-                return executor.execute(flowByNumber.get(), baseUrl);
+                CallFlow flow = flowByNumber.get();
+                traceService.log(CallTrace.of("CALL_ROUTED", "INFO", "Inbound routed to call flow: " + flow.getName())
+                        .callSid(CallSid)
+                        .direction("INBOUND")
+                        .from(From)
+                        .to(To)
+                        .flow(flow.getId(), flow.getName()));
+                return executor.execute(flow, baseUrl, CallSid, null, null);
             }
 
             // 3 & 4. WorkType DNIS match
@@ -140,8 +158,21 @@ public class TwilioController {
                 response.say(new Say.Builder(
                         "Thank you for calling. Please hold while we connect you.").build());
                 if (wt.getCallFlow() != null && wt.getCallFlow().isActive()) {
-                    return executor.execute(wt.getCallFlow(), baseUrl);
+                    traceService.log(CallTrace.of("CALL_ROUTED", "INFO", "Inbound routed to call flow: " + wt.getCallFlow().getName())
+                            .callSid(CallSid)
+                            .direction("INBOUND")
+                            .from(From)
+                            .to(To)
+                            .flow(wt.getCallFlow().getId(), wt.getCallFlow().getName())
+                            .workType(wt.getId(), wt.getName()));
+                    return executor.execute(wt.getCallFlow(), baseUrl, CallSid, wt.getId(), wt.getName());
                 }
+                traceService.log(CallTrace.of("CALL_ROUTED", "INFO", "Inbound routed to WorkType queue: " + wt.getName())
+                        .callSid(CallSid)
+                        .direction("INBOUND")
+                        .from(From)
+                        .to(To)
+                        .workType(wt.getId(), wt.getName()));
                 dialWorkTypeAgents(response, wt);
                 return response.build().toXml();
             }
@@ -149,6 +180,11 @@ public class TwilioController {
             // 5. Outbound PSTN — callerId required when call comes from browser SDK
             //    (From = "client:username", not a Twilio number, so Twilio can't infer it)
             if (!To.equals(twilioPhoneNumber)) {
+                traceService.log(CallTrace.of("CALL_ROUTED", "SUCCESS", "Outbound PSTN call to: " + To)
+                        .callSid(CallSid)
+                        .direction("OUTBOUND")
+                        .from(From)
+                        .to(To));
                 return response.dial(new Dial.Builder()
                         .callerId(twilioPhoneNumber)
                         .number(new Number.Builder(To).build())
@@ -157,6 +193,11 @@ public class TwilioController {
         }
 
         // 6. Fallback: simulring all ONLINE agents
+        traceService.log(CallTrace.of("CALL_ROUTED", "WARNING", "Fallback: simulring all online agents")
+                .callSid(CallSid)
+                .direction("INBOUND")
+                .from(From)
+                .to(To));
         dialAllOnlineAgents(response);
         return response.build().toXml();
     }
