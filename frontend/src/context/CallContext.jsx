@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useRef, useState, useEffect, useCallback } from 'react'
+import { Device } from '@twilio/voice-sdk'
 import { api, apiJson } from '../lib/api'
 
 const CallContext = createContext(null)
@@ -141,7 +142,7 @@ export function CallProvider({ children }) {
         const res = await api('/api/twilio/token')
         if (!res.ok) return
         const { token } = await res.json()
-        const device = new window.Twilio.Device(token, {
+        const device = new Device(token, {
           logLevel: 1,
           codecPreferences: ['opus', 'pcmu'],
           edge: 'roaming',
@@ -182,3 +183,4 @@ export function CallProvider({ children }) {
 }
 
 export const useCall = () => useContext(CallContext)
+) => useContext(CallContext)
