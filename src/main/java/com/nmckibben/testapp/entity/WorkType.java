@@ -55,7 +55,7 @@ public class WorkType {
                inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> agents = new HashSet<>();
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "bit default 0")
     private boolean tracingEnabled = false;
 
     @Column(nullable = false, updatable = false)
