@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+VisualStudioVersion = 17.0.31919.166
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.Shared", "ContactCenterApp.Shared\ContactCenterApp.Shared.csproj", "{A1B2C3D4-E5F6-4A5B-9C8D-1E2F3A4B5C6D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.Data", "ContactCenterApp.Data\ContactCenterApp.Data.csproj", "{B2C3D4E5-F6A7-4B5C-9D8E-2F3A4B5C6D7E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.ApiGateway", "ContactCenterApp.ApiGateway\ContactCenterApp.ApiGateway.csproj", "{C3D4E5F6-A7B8-4C5D-9E8F-3A4B5C6D7E8F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.AuthService", "ContactCenterApp.AuthService\ContactCenterApp.AuthService.csproj", "{D4E5F6A7-B8C9-4D5E-9F8G-4B5C6D7E8F9G}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.UserService", "ContactCenterApp.UserService\ContactCenterApp.UserService.csproj", "{E5F6A7B8-C9D0-4E5F-9G8H-5C6D7E8F9G0H}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.CampaignService", "ContactCenterApp.CampaignService\ContactCenterApp.CampaignService.csproj", "{F6A7B8C9-D0E1-4F5G-9H8I-6D7E8F9G0H1I}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.ContactService", "ContactCenterApp.ContactService\ContactCenterApp.ContactService.csproj", "{G7B8C9D0-E1F2-4G5H-9I8J-7E8F9G0H1I2J}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.CallService", "ContactCenterApp.CallService\ContactCenterApp.CallService.csproj", "{H8C9D0E1-F2G3-4H5I-9J8K-8F9G0H1I2J3K}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.WorkTypeService", "ContactCenterApp.WorkTypeService\ContactCenterApp.WorkTypeService.csproj", "{I9D0E1F2-G3H4-4I5J-9K8L-9G0H1I2J3K4L}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7C60}") = "ContactCenterApp.AdminService", "ContactCenterApp.AdminService\ContactCenterApp.AdminService.csproj", "{J0E1F2G3-H4I5-4J5K-9L8M-0H1I2J3K4L5M}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+EndGlobal
