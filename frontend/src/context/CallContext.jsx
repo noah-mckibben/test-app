@@ -183,4 +183,3 @@ export function CallProvider({ children }) {
 }
 
 export const useCall = () => useContext(CallContext)
-) => useContext(CallContext)
