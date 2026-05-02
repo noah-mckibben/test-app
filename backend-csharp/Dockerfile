@@ -8,20 +8,20 @@ RUN npm run build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet-build
 WORKDIR /src
 
-COPY ["ContactCenterApp.Shared/ContactCenterApp.Shared.csproj", "ContactCenterApp.Shared/"]
-COPY ["ContactCenterApp.Data/ContactCenterApp.Data.csproj", "ContactCenterApp.Data/"]
-COPY ["ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj", "ContactCenterApp.ApiGateway/"]
-COPY ["ContactCenterApp.AuthService/ContactCenterApp.AuthService.csproj", "ContactCenterApp.AuthService/"]
-COPY ["ContactCenterApp.UserService/ContactCenterApp.UserService.csproj", "ContactCenterApp.UserService/"]
-COPY ["ContactCenterApp.CampaignService/ContactCenterApp.CampaignService.csproj", "ContactCenterApp.CampaignService/"]
-COPY ["ContactCenterApp.ContactService/ContactCenterApp.ContactService.csproj", "ContactCenterApp.ContactService/"]
-COPY ["ContactCenterApp.CallService/ContactCenterApp.CallService.csproj", "ContactCenterApp.CallService/"]
-COPY ["ContactCenterApp.WorkTypeService/ContactCenterApp.WorkTypeService.csproj", "ContactCenterApp.WorkTypeService/"]
-COPY ["ContactCenterApp.AdminService/ContactCenterApp.AdminService.csproj", "ContactCenterApp.AdminService/"]
+COPY ["backend-csharp/ContactCenterApp.Shared/ContactCenterApp.Shared.csproj", "ContactCenterApp.Shared/"]
+COPY ["backend-csharp/ContactCenterApp.Data/ContactCenterApp.Data.csproj", "ContactCenterApp.Data/"]
+COPY ["backend-csharp/ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj", "ContactCenterApp.ApiGateway/"]
+COPY ["backend-csharp/ContactCenterApp.AuthService/ContactCenterApp.AuthService.csproj", "ContactCenterApp.AuthService/"]
+COPY ["backend-csharp/ContactCenterApp.UserService/ContactCenterApp.UserService.csproj", "ContactCenterApp.UserService/"]
+COPY ["backend-csharp/ContactCenterApp.CampaignService/ContactCenterApp.CampaignService.csproj", "ContactCenterApp.CampaignService/"]
+COPY ["backend-csharp/ContactCenterApp.ContactService/ContactCenterApp.ContactService.csproj", "ContactCenterApp.ContactService/"]
+COPY ["backend-csharp/ContactCenterApp.CallService/ContactCenterApp.CallService.csproj", "ContactCenterApp.CallService/"]
+COPY ["backend-csharp/ContactCenterApp.WorkTypeService/ContactCenterApp.WorkTypeService.csproj", "ContactCenterApp.WorkTypeService/"]
+COPY ["backend-csharp/ContactCenterApp.AdminService/ContactCenterApp.AdminService.csproj", "ContactCenterApp.AdminService/"]
 
 RUN dotnet restore "ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj"
 
-COPY . .
+COPY backend-csharp/ .
 RUN dotnet build "ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj" -c Release -o /app/build
 
 FROM dotnet-build AS dotnet-publish
