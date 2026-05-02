@@ -21,6 +21,13 @@ if (!string.IsNullOrEmpty(keyVaultUrl))
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "your-secret-key-change-in-production";
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
+// Replace password placeholder if running in Azure
+var dbPassword = builder.Configuration["DbPassword"];
+if (!string.IsNullOrEmpty(dbPassword) && connectionString!.Contains("{PASSWORD_PLACEHOLDER}"))
+{
+    connectionString = connectionString.Replace("{PASSWORD_PLACEHOLDER}", dbPassword);
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 
@@ -48,13 +55,23 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
+        var allowedOrigins = new List<string>
+        {
             "http://localhost:3000",
             "http://localhost:5000",
             "http://localhost:5173",
             "http://127.0.0.1:5000",
             "http://127.0.0.1:5173"
-        )
+        };
+
+        // Add Azure Container Apps URLs if configured
+        var azureUrl = builder.Configuration["AzureUrl"];
+        if (!string.IsNullOrEmpty(azureUrl))
+        {
+            allowedOrigins.Add(azureUrl);
+        }
+
+        policy.WithOrigins(allowedOrigins.ToArray())
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
