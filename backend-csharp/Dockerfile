@@ -22,6 +22,9 @@ COPY ["backend-csharp/ContactCenterApp.AdminService/ContactCenterApp.AdminServic
 RUN dotnet restore "ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj"
 
 COPY backend-csharp/ .
+# Remove wwwroot to avoid conflicts with React build - will be added later
+RUN rm -rf ContactCenterApp.ApiGateway/wwwroot
+
 RUN dotnet build "ContactCenterApp.ApiGateway/ContactCenterApp.ApiGateway.csproj" -c Release -o /app/build
 
 FROM dotnet-build AS dotnet-publish
