@@ -2,15 +2,15 @@
 
 set -e
 
-# Configuration
-SUBSCRIPTION_ID="e4fb7f30-86ac-4ae8-82e1-297f8752bb7f"
-RESOURCE_GROUP="rg-testapp-prod"
-ACR_NAME="contactcenterplatform"
-LOCATION="westus2"
-CONTAINER_APP_NAME="test-app-container"
-IMAGE_NAME="test-app"
-DB_PASSWORD="Ready1235$"
-KEYVAULT_NAME="contactcenterplatform"
+# Configuration - Use environment variables if provided (from GitHub Actions), otherwise use defaults
+SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-e4fb7f30-86ac-4ae8-82e1-297f8752bb7f}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-rg-testapp-prod}"
+ACR_NAME="${ACR_NAME:-contactcenterplatform}"
+LOCATION="${LOCATION:-westus2}"
+CONTAINER_APP_NAME="${CONTAINER_APP_NAME:-test-app-container}"
+IMAGE_NAME="${IMAGE_NAME:-test-app}"
+DB_PASSWORD="${DB_PASSWORD:-Ready1235$}"
+KEYVAULT_NAME="${KEYVAULT_NAME:-contactcenterplatform}"
 
 echo "================================"
 echo "Azure Container Apps Deployment"
