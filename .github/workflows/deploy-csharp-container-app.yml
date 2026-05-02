@@ -5,6 +5,10 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -46,12 +50,16 @@ jobs:
         working-directory: ./backend-csharp
         run: dotnet publish -c Release -o ./publish
 
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v2
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v2
         with:
-          login-server: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
-          username: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
-          password: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -63,30 +71,20 @@ jobs:
             ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:latest
             ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
 
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: Add/Update secrets in Key Vault
-        uses: azure/CLI@v2
-        with:
-          inlineScript: |
-            az keyvault secret set --vault-name ${{ secrets.AZURE_KEY_VAULT_NAME }} --name "ConnectionStrings-DefaultConnection" --value "${{ secrets.SQL_SERVER_CONNECTION_STRING }}"
-            az keyvault secret set --vault-name ${{ secrets.AZURE_KEY_VAULT_NAME }} --name "Jwt-Secret" --value "${{ secrets.JWT_SECRET }}"
-            az keyvault secret set --vault-name ${{ secrets.AZURE_KEY_VAULT_NAME }} --name "Twilio-AccountSid" --value "${{ secrets.TWILIO_ACCOUNT_SID }}"
-            az keyvault secret set --vault-name ${{ secrets.AZURE_KEY_VAULT_NAME }} --name "Twilio-AuthToken" --value "${{ secrets.TWILIO_AUTH_TOKEN }}"
-            az keyvault secret set --vault-name ${{ secrets.AZURE_KEY_VAULT_NAME }} --name "Twilio-PhoneNumber" --value "${{ secrets.TWILIO_PHONE_NUMBER }}"
+        run: |
+          KEYVAULT_NAME=$(az keyvault list --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --query "[0].name" -o tsv)
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "ConnectionStrings-DefaultConnection" --value "${{ secrets.SQL_SERVER_CONNECTION_STRING }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Jwt-Secret" --value "${{ secrets.JWT_SECRET }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-AccountSid" --value "${{ secrets.TWILIO_ACCOUNT_SID }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-AuthToken" --value "${{ secrets.TWILIO_AUTH_TOKEN }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-PhoneNumber" --value "${{ secrets.TWILIO_PHONE_NUMBER }}"
 
       - name: Deploy to Azure Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          registryUrl: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
-          registryUsername: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
-          registryPassword: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
-          containerAppName: contact-center-app
-          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          imageToDeploy: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
-          environmentVariables: |
-            ASPNETCORE_ENVIRONMENT=Production
-            KeyVault__Url=${{ secrets.AZURE_KEY_VAULT_URL }}
+        run: |
+          az containerapp update \
+            --name contact-center-app \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --image ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }} \
+            --registry-server ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io \
+            --set-env-vars ASPNETCORE_ENVIRONMENT=Production KeyVault__Url=https://${KEYVAULT_NAME}.vault.azure.net/
