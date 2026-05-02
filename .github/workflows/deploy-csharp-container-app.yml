@@ -1,1 +1,96 @@
-name: Deploy C# Container App\n\non: push:\n  branches:\n    - main\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout code\n        uses: actions/checkout@v2\n      - name: Set up Docker Buildx\n        uses: docker/setup-buildx-action@v1\n      - name: Login to Docker Registry\n        uses: docker/login-action@v1\n        with:\n          registry: your-docker-registry\n          username: ${{ secrets.DOCKER_USERNAME }}\n          password: ${{ secrets.DOCKER_PASSWORD }}\n      - name: Build and Push Docker Image\n        uses: docker/build-push-action@v2\n        with:\n          context: .\n          file: ./Dockerfile\n          push: true\n          tags: your-docker-registry/your-image:latest\n      - name: Deploy with Docker\n        run: docker run your-docker-registry/your-image:latest\n
+name: Deploy C# Backend to Azure Container Apps
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Restore .NET dependencies
+        working-directory: ./backend-csharp
+        run: dotnet restore
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build .NET project
+        working-directory: ./backend-csharp
+        run: dotnet build -c Release
+
+      - name: Run tests (if any)
+        working-directory: ./backend-csharp
+        run: dotnet test -c Release --verbosity normal --no-build
+        continue-on-error: true
+
+      - name: Publish .NET project
+        working-directory: ./backend-csharp
+        run: dotnet publish -c Release -o ./publish
+
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend-csharp/Dockerfile
+          push: true
+          registry: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+          tags: |
+            ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:latest
+            ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
+
+      - name: Add/Update secrets in Key Vault
+        run: |
+          KEYVAULT_NAME=$(az keyvault list --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --query "[0].name" -o tsv)
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "ConnectionStrings-DefaultConnection" --value "${{ secrets.SQL_SERVER_CONNECTION_STRING }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Jwt-Secret" --value "${{ secrets.JWT_SECRET }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-AccountSid" --value "${{ secrets.TWILIO_ACCOUNT_SID }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-AuthToken" --value "${{ secrets.TWILIO_AUTH_TOKEN }}"
+          az keyvault secret set --vault-name $KEYVAULT_NAME --name "Twilio-PhoneNumber" --value "${{ secrets.TWILIO_PHONE_NUMBER }}"
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp update \
+            --name contact-center-app \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --image ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }} \
+            --registry-server ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io \
+            --set-env-vars ASPNETCORE_ENVIRONMENT=Production KeyVault__Url=https://${KEYVAULT_NAME}.vault.azure.net/
