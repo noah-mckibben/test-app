@@ -15,4 +15,8 @@
     <ProjectReference Include="..\ContactCenterApp.Shared\ContactCenterApp.Shared.csproj" />
     <ProjectReference Include="..\ContactCenterApp.Data\ContactCenterApp.Data.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
