@@ -37,7 +37,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5000")
+        policy.WithOrigins(
+            "http://localhost:3000",
+            "http://localhost:5000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5000",
+            "http://127.0.0.1:5173"
+        )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -46,17 +52,25 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseRouting();
-app.UseCors("AllowFrontend");
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
-
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     context.Database.Migrate();
 }
+
+app.UseRouting();
+app.UseCors("AllowFrontend");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseStaticFiles();
+
+app.MapControllers();
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .WithName("Health")
+    .WithOpenApi();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();

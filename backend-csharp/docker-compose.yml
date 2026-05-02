@@ -19,7 +19,12 @@ services:
       - mssql
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:5000"
       ConnectionStrings__DefaultConnection: "Server=mssql;Database=ContactCenterApp;User Id=sa;Password=YourPassword123!;TrustServerCertificate=true;"
+      Jwt__Secret: "your-development-secret-key-change-in-production"
+      Twilio__AccountSid: "${TWILIO_ACCOUNT_SID:-}"
+      Twilio__AuthToken: "${TWILIO_AUTH_TOKEN:-}"
+      Twilio__PhoneNumber: "${TWILIO_PHONE_NUMBER:-}"
 
 volumes:
   mssql_data:

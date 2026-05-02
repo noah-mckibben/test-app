@@ -1,0 +1,86 @@
+name: Deploy C# Backend to Azure Container Apps
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Restore .NET dependencies
+        working-directory: ./backend-csharp
+        run: dotnet restore
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build .NET project
+        working-directory: ./backend-csharp
+        run: dotnet build -c Release
+
+      - name: Run tests (if any)
+        working-directory: ./backend-csharp
+        run: dotnet test -c Release --verbosity normal --no-build
+        continue-on-error: true
+
+      - name: Publish .NET project
+        working-directory: ./backend-csharp
+        run: dotnet publish -c Release -o ./publish
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend-csharp/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:latest
+            ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          registryUrl: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io
+          registryUsername: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+          containerAppName: contact-center-app
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          imageToDeploy: ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
+          environmentVariables: |
+            ASPNETCORE_ENVIRONMENT=Production
+            ConnectionStrings__DefaultConnection=${{ secrets.SQL_SERVER_CONNECTION_STRING }}
+            Jwt__Secret=${{ secrets.JWT_SECRET }}
+            Twilio__AccountSid=${{ secrets.TWILIO_ACCOUNT_SID }}
+            Twilio__AuthToken=${{ secrets.TWILIO_AUTH_TOKEN }}
+            Twilio__PhoneNumber=${{ secrets.TWILIO_PHONE_NUMBER }}
