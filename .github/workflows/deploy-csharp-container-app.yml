@@ -39,13 +39,17 @@ jobs:
 
       - name: Deploy to Azure Container Apps
         run: |
+          az containerapp registry set \
+            --name contact-center-app \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --server ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io \
+            --username ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }} \
+            --password ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+
           az containerapp update \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --name contact-center-app \
             --image ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }} \
-            --registry-login-server ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io \
-            --registry-username ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }} \
-            --registry-password ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }} \
             --set-env-vars \
               ConnectionStrings__DefaultConnection="${{ secrets.SQL_SERVER_CONNECTION_STRING }}" \
               Jwt__Secret="${{ secrets.JWT_SECRET }}" \
