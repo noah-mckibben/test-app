@@ -4,8 +4,19 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ContactCenterApp.Data;
 using ContactCenterApp.Shared.Security;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 
 var builder = WebApplicationBuilder.CreateBuilder(args);
+
+var keyVaultUrl = builder.Configuration["KeyVault:Url"];
+if (!string.IsNullOrEmpty(keyVaultUrl))
+{
+    var credential = new DefaultAzureCredential();
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUrl),
+        credential);
+}
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "your-secret-key-change-in-production";
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
