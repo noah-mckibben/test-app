@@ -7,7 +7,7 @@ using ContactCenterApp.Shared.Security;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 
-var builder = WebApplicationBuilder.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 var keyVaultUrl = builder.Configuration["KeyVault:Url"];
 if (!string.IsNullOrEmpty(keyVaultUrl))
@@ -78,9 +78,8 @@ app.UseStaticFiles();
 
 app.MapControllers();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
-    .WithName("Health")
-    .WithOpenApi();
+app.MapGet("/health", context => context.Response.WriteAsJsonAsync(new { status = "healthy" }))
+    .WithName("Health");
 
 app.MapFallbackToFile("index.html");
 

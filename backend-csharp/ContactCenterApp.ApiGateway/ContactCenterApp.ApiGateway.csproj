@@ -8,6 +8,7 @@
   
   
     <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.3" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.1.1" />
     <PackageReference Include="Azure.Identity" Version="1.12.0" />
@@ -19,7 +20,4 @@
     <ProjectReference Include="..\ContactCenterApp.Data\ContactCenterApp.Data.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 </Project>
