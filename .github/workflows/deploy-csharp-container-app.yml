@@ -30,8 +30,8 @@ jobs:
       - name: Build and push Docker image to ACR
         uses: docker/build-push-action@v5
         with:
-          context: ./backend-csharp
-          file: ./backend-csharp/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}.azurecr.io/contact-center-app:${{ github.sha }}
