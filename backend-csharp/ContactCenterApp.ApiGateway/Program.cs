@@ -65,16 +65,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    try
-    {
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        // Log the error but don't fail startup - allows development without database
-        app.Logger.LogWarning($"Database migration failed: {ex.Message}. Running without database.");
-    }
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    context.Database.Migrate();
 }
 
 app.UseRouting();
