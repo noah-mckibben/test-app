@@ -85,7 +85,7 @@ namespace ContactCenterApp.ApiGateway.Controllers
             if (callRecord == null) return NotFound();
 
             callRecord.Status = request.Status;
-            callRecord.UpdatedAt = DateTime.UtcNow;
+            callRecord.EndTime = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             return NoContent();
