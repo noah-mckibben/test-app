@@ -69,11 +69,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    context.Database.Migrate();
-}
+// Note: Migrations disabled since using shared database with Java application
+// Uncomment only if needed for C# schema updates
+// using (var scope = app.Services.CreateScope())
+// {
+//     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//     context.Database.Migrate();
+// }
 
 // Health endpoint before CORS to avoid CORS restrictions
 app.MapGet("/health", context => context.Response.WriteAsJsonAsync(new { status = "healthy" }))
