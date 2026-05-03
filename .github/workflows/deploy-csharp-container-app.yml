@@ -46,6 +46,12 @@ jobs:
             --username ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }} \
             --password ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
 
+          # Get the FQDN for CORS configuration
+          FQDN=$(az containerapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name contact-center-app \
+            --query properties.configuration.ingress.fqdn -o tsv)
+
           az containerapp update \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --name contact-center-app \
@@ -55,7 +61,8 @@ jobs:
               Jwt__Secret="${{ secrets.JWT_SECRET }}" \
               Twilio__AccountSid="${{ secrets.TWILIO_ACCOUNT_SID }}" \
               Twilio__AuthToken="${{ secrets.TWILIO_AUTH_TOKEN }}" \
-              Twilio__PhoneNumber="${{ secrets.TWILIO_PHONE_NUMBER }}"
+              Twilio__PhoneNumber="${{ secrets.TWILIO_PHONE_NUMBER }}" \
+              AzureUrl="https://$FQDN"
 
       - name: Verify deployment
         run: |
