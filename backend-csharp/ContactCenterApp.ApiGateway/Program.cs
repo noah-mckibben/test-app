@@ -60,10 +60,30 @@ builder.Services.AddCors(options =>
             allowedOrigins.Add(azureUrl);
         }
 
-        policy.WithOrigins(allowedOrigins.ToArray())
+        // In production, allow same-origin requests
+        if (!builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins.ToArray());
+        }
+
+        policy.AllowAnyMethod()
+            .AllowAnyHeader();
+
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowCredentials();
+        }
+    });
+
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
             .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
+            .AllowAnyHeader();
     });
 });
 
@@ -77,13 +97,17 @@ var app = builder.Build();
 //     context.Database.Migrate();
 // }
 
-// Health endpoint before CORS to avoid CORS restrictions
+app.UseRouting();
+
+// Health endpoint with permissive CORS
 app.MapGet("/health", context => context.Response.WriteAsJsonAsync(new { status = "healthy" }))
     .WithName("Health")
-    .DisableCors();
+    .WithOpenApi()
+    .AllowAnonymous();
 
-app.UseRouting();
+// CORS middleware - apply before authentication
 app.UseCors("AllowFrontend");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
