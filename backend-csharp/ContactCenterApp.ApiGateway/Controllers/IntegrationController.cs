@@ -105,7 +105,7 @@ namespace ContactCenterApp.ApiGateway.Controllers
                 {
                     Id = d.Id,
                     Name = d.Name,
-                    Type = d.Type
+                    Type = d.ActionType
                 })
                 .ToList();
 
