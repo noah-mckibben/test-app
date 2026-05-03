@@ -75,6 +75,11 @@ using (var scope = app.Services.CreateScope())
     context.Database.Migrate();
 }
 
+// Health endpoint before CORS to avoid CORS restrictions
+app.MapGet("/health", context => context.Response.WriteAsJsonAsync(new { status = "healthy" }))
+    .WithName("Health")
+    .DisableCors();
+
 app.UseRouting();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
@@ -83,9 +88,6 @@ app.UseAuthorization();
 app.UseStaticFiles();
 
 app.MapControllers();
-
-app.MapGet("/health", context => context.Response.WriteAsJsonAsync(new { status = "healthy" }))
-    .WithName("Health");
 
 app.MapFallbackToFile("index.html");
 
